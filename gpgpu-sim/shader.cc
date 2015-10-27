@@ -129,8 +129,6 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                          CONCRETE_SCHEDULER_LRR :
                                          sched_config.find("two_level_active") != std::string::npos ?
                                          CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE :
-                                         sched_config.find("lwa") != std::string::npos ?
-                                         CONCRETE_SCHEDULER_LARGE_WARP :
                                          sched_config.find("gto") != std::string::npos ?
                                          CONCRETE_SCHEDULER_GTO :
                                          sched_config.find("warp_limiting") != std::string::npos ?
@@ -168,21 +166,6 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     i,
                                                     config->gpgpu_scheduler_string
                                                   )
-                );
-                break;
-            case CONCRETE_SCHEDULER_LARGE_WARP:
-                schedulers.push_back(
-                    new large_warp ( m_stats,
-                                     this,
-                                     m_scoreboard,
-                                     m_simt_stack,
-                                     &m_warp,
-                                     &m_pipeline_reg[ID_OC_SP],
-                                     &m_pipeline_reg[ID_OC_SFU],
-                                     &m_pipeline_reg[ID_OC_MEM],
-                                     i,
-                                     config->gpgpu_scheduler_string
-                                    )
                 );
                 break;
             case CONCRETE_SCHEDULER_GTO:
