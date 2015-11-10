@@ -1810,6 +1810,9 @@ public:
     Scoreboard               *m_scoreboard;
     opndcoll_rfu_t            m_operand_collector;
 
+	//large warp stalling variable
+	bool m_large_warp_stalling;
+
     //schedule
     std::vector<scheduler_unit*>  schedulers;
 

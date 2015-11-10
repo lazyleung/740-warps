@@ -84,6 +84,9 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     
     m_sid = shader_id;
     m_tpc = tpc_id;
+
+	// large warp stalling
+	m_large_warp_stalling = false;
     
     m_pipeline_reg.reserve(N_PIPELINE_STAGES);
     for (int j = 0; j<N_PIPELINE_STAGES; j++) {
@@ -129,8 +132,6 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                          CONCRETE_SCHEDULER_LRR :
                                          sched_config.find("two_level_active") != std::string::npos ?
                                          CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE :
-                                         sched_config.find("lwa") != std::string::npos ?
-                                         CONCRETE_SCHEDULER_LARGE_WARP :
                                          sched_config.find("gto") != std::string::npos ?
                                          CONCRETE_SCHEDULER_GTO :
                                          sched_config.find("warp_limiting") != std::string::npos ?
@@ -168,21 +169,6 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     i,
                                                     config->gpgpu_scheduler_string
                                                   )
-                );
-                break;
-            case CONCRETE_SCHEDULER_LARGE_WARP:
-                schedulers.push_back(
-                    new two_level_active_scheduler( m_stats,
-                                     this,
-                                     m_scoreboard,
-                                     m_simt_stack,
-                                     &m_warp,
-                                     &m_pipeline_reg[ID_OC_SP],
-                                     &m_pipeline_reg[ID_OC_SFU],
-                                     &m_pipeline_reg[ID_OC_MEM],
-                                     i,
-                                     config->gpgpu_scheduler_string
-                                    )
                 );
                 break;
             case CONCRETE_SCHEDULER_GTO:
@@ -329,6 +315,8 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread, bool re
       m_warp[i].reset();
       m_simt_stack[i]->reset();
    }
+
+	m_large_warp_stalling = false;
 }
 
 void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsigned end_thread )
@@ -581,7 +569,7 @@ void shader_core_stats::visualizer_print( gzFile visualizer_file )
                                         other memory spaces */
 void shader_core_ctx::decode()
 {
-    if( m_inst_fetch_buffer.m_valid ) {
+    if( m_inst_fetch_buffer.m_valid && !m_large_warp_stalling) {
         // decode 1 or 2 instructions and place them into ibuffer
         address_type pc = m_inst_fetch_buffer.m_pc;
         const warp_inst_t* pI1 = ptx_fetch_inst(pc);
@@ -823,7 +811,12 @@ void scheduler_unit::cycle()
     bool ready_inst = false;  // of the valid instructions, there was one not waiting for pending register writes
     bool issued_inst = false; // of these we issued one
 
-    order_warps();
+	// large warp variables
+	unsigned thread_ind[MAX_SUBWARP_SIZE];
+	active_mask_t subwarp_mask;
+
+	if (!m_shader->m_large_warp_stalling)
+        order_warps();
     for ( std::vector< shd_warp_t* >::const_iterator iter = m_next_cycle_prioritized_warps.begin();
           iter != m_next_cycle_prioritized_warps.end();
           iter++ ) {
@@ -864,7 +857,17 @@ void scheduler_unit::cycle()
                         assert( warp(warp_id).inst_in_pipeline() );
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
-                                m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
+								subwarp_mask.reset();
+								for (int i = 0; i < MAX_SUBWARP_SIZE; i++) {
+									for (int j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
+										if (active_mask.test(i + j)) {
+											subwarp_mask.set(i + j);
+											break;
+										}
+									}
+								}
+								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
+                                //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
@@ -874,13 +877,33 @@ void scheduler_unit::cycle()
                             bool sfu_pipe_avail = m_sfu_out->has_free();
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
-                                m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
+								subwarp_mask.reset();
+								for (int i = 0; i < MAX_SUBWARP_SIZE; i++) {
+									for (int j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
+										if (active_mask.test(i + j)) {
+											subwarp_mask.set(i + j);
+											break;
+										}
+									}
+								}
+								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
+                                //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
-                                    m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
+									subwarp_mask.reset();
+									for (int i = 0; i < MAX_SUBWARP_SIZE; i++) {
+										for (int j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
+											if (active_mask.test(i + j)) {
+												subwarp_mask.set(i + j);
+												break;
+											}
+										}
+									}
+									m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
+                                    //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
                                     issued++;
                                     issued_inst=true;
                                     warp_inst_issued = true;
