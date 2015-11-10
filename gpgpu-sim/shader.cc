@@ -569,7 +569,7 @@ void shader_core_stats::visualizer_print( gzFile visualizer_file )
                                         other memory spaces */
 void shader_core_ctx::decode()
 {
-    if( m_inst_fetch_buffer.m_valid/* && !m_large_warp_stalling*/) {
+    if( m_inst_fetch_buffer.m_valid && !m_large_warp_stalling) {
         // decode 1 or 2 instructions and place them into ibuffer
         address_type pc = m_inst_fetch_buffer.m_pc;
         const warp_inst_t* pI1 = ptx_fetch_inst(pc);

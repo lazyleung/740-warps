@@ -297,7 +297,7 @@ const unsigned MAX_WARP_SIZE = 256;
 const unsigned MAX_SUBWARP_SIZE = 32;
 //const unsigned MAX_WARP_SIZE = 32;
 typedef std::bitset<MAX_WARP_SIZE> active_mask_t;
-#define MAX_WARP_SIZE_SIMT_STACK  MAX_WARP_SIZE
+#define MAX_WARP_SIZE_SIMT_STACK  MAX_SUBWARP_SIZE//MAX_WARP_SIZE
 typedef std::bitset<MAX_WARP_SIZE_SIMT_STACK> simt_mask_t;
 typedef std::vector<address_type> addr_vector_t;
 
