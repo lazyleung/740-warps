@@ -812,7 +812,6 @@ void scheduler_unit::cycle()
     bool issued_inst = false; // of these we issued one
 
 	// large warp variables
-	unsigned thread_ind[MAX_SUBWARP_SIZE];
 	active_mask_t subwarp_mask;
 
 	if (!m_shader->m_large_warp_stalling)
