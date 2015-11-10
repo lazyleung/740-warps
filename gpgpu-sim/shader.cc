@@ -865,6 +865,8 @@ void scheduler_unit::cycle()
 										}
 									}
 								}
+								if (subwarp_mask.count() == 0)
+									SCHED_DPRINTF("getting empty active mask\n");
 								m_shader->m_large_warp_stalling = active_mask.count() > subwarp_mask.count();
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
@@ -886,6 +888,8 @@ void scheduler_unit::cycle()
 										}
 									}
 								}
+								if (subwarp_mask.count() == 0)
+									SCHED_DPRINTF("getting empty active mask\n");
 								m_shader->m_large_warp_stalling = active_mask.count() > subwarp_mask.count();
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
@@ -903,6 +907,8 @@ void scheduler_unit::cycle()
 											}
 										}
 									}
+									if (subwarp_mask.count() == 0)
+										SCHED_DPRINTF("getting empty active mask\n");
 									m_shader->m_large_warp_stalling = active_mask.count() > subwarp_mask.count();
 									m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                     //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
