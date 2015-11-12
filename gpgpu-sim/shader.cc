@@ -571,7 +571,7 @@ void shader_core_stats::visualizer_print( gzFile visualizer_file )
                                         other memory spaces */
 void shader_core_ctx::decode()
 {
-	printf("m_large_warp_stalling: %b\n", m_large_warp_stalling);
+	printf("m_large_warp_stalling: %d\n", m_large_warp_stalling);
     if( m_inst_fetch_buffer.m_valid && (!m_decode || !m_large_warp_stalling)) {
 		printf("entered decode\n");
         // decode 1 or 2 instructions and place them into ibuffer
