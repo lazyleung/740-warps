@@ -1812,6 +1812,7 @@ public:
 
 	//large warp stalling variable
 	bool m_large_warp_stalling;
+	bool m_decode;
 
     //schedule
     std::vector<scheduler_unit*>  schedulers;

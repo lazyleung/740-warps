@@ -87,7 +87,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
 
 	// large warp stalling
 	m_large_warp_stalling = false;
-    
+    m_decode = false;
+   
     m_pipeline_reg.reserve(N_PIPELINE_STAGES);
     for (int j = 0; j<N_PIPELINE_STAGES; j++) {
         m_pipeline_reg.push_back(register_set(m_config->pipe_widths[j],pipeline_stage_name_decode[j]));
@@ -317,6 +318,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread, bool re
    }
 
 	m_large_warp_stalling = false;
+	m_decode = false;
 }
 
 void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsigned end_thread )
@@ -569,7 +571,7 @@ void shader_core_stats::visualizer_print( gzFile visualizer_file )
                                         other memory spaces */
 void shader_core_ctx::decode()
 {
-    if( m_inst_fetch_buffer.m_valid && !m_large_warp_stalling) {
+    if( m_inst_fetch_buffer.m_valid && (!m_decode || !m_large_warp_stalling)) {
         // decode 1 or 2 instructions and place them into ibuffer
         address_type pc = m_inst_fetch_buffer.m_pc;
         const warp_inst_t* pI1 = ptx_fetch_inst(pc);
@@ -595,6 +597,7 @@ void shader_core_ctx::decode()
            }
         }
         m_inst_fetch_buffer.m_valid = false;
+		m_decode = true;
     }
 }
 
@@ -865,7 +868,7 @@ void scheduler_unit::cycle()
 										}
 									}
 								}
-								m_shader->m_large_warp_stalling = active_mask.count() > subwarp_mask.count();
+								m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
@@ -886,7 +889,7 @@ void scheduler_unit::cycle()
 										}
 									}
 								}
-								m_shader->m_large_warp_stalling = active_mask.count() > subwarp_mask.count();
+								m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
@@ -903,7 +906,7 @@ void scheduler_unit::cycle()
 											}
 										}
 									}
-									m_shader->m_large_warp_stalling = active_mask.count() > subwarp_mask.count();
+									m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
 									m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                     //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
                                     issued++;
