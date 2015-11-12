@@ -571,7 +571,6 @@ void shader_core_stats::visualizer_print( gzFile visualizer_file )
                                         other memory spaces */
 void shader_core_ctx::decode()
 {
-	printf("m_large_warp_stalling: %d\n", m_large_warp_stalling);
     if( m_inst_fetch_buffer.m_valid && (!m_decode || !m_large_warp_stalling)) {
 		printf("entered decode\n");
         // decode 1 or 2 instructions and place them into ibuffer
@@ -870,6 +869,7 @@ void scheduler_unit::cycle()
 										}
 									}
 								}
+								printf("act_msk: %s, sw_msk: %s\n", active_mask.to_string(), subwarp_mask.to_string());
 								m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
@@ -891,6 +891,7 @@ void scheduler_unit::cycle()
 										}
 									}
 								}
+								printf("act_msk: %s, sw_msk: %s\n", active_mask.to_string(), subwarp_mask.to_string());
 								m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
@@ -908,6 +909,7 @@ void scheduler_unit::cycle()
 											}
 										}
 									}
+									printf("act_msk: %s, sw_msk: %s\n", active_mask.to_string(), subwarp_mask.to_string());								
 									m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
 									m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                     //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
