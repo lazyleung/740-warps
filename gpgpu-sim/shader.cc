@@ -707,7 +707,8 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     }
 
     updateSIMTStack(warp_id,*pipe_reg);
-    m_scoreboard->reserveRegisters(*pipe_reg);
+	if (!m_large_warp_stalling)
+    	m_scoreboard->reserveRegisters(*pipe_reg);
     m_warp[warp_id].set_next_pc(next_inst->pc + next_inst->isize);
 }
 
@@ -854,7 +855,7 @@ void scheduler_unit::cycle()
                     warp(warp_id).ibuffer_flush();
                 } else {
                     valid_inst = true;
-                    if ( !m_scoreboard->checkCollision(warp_id, pI) ) {
+                    if ( !m_scoreboard->checkCollision(warp_id, pI) || m_shader->m_large_warp_staling ) {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
                         ready_inst = true;
