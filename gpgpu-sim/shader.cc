@@ -930,7 +930,7 @@ void scheduler_unit::cycle()
                warp(warp_id).set_next_pc(pc);
                warp(warp_id).ibuffer_flush();
             }
-            if(warp_inst_issued) {
+            if(warp_inst_issued && !m_shader->m_large_warp_stalling) {
                 SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
                                (*iter)->get_warp_id(),
                                (*iter)->get_dynamic_warp_id(),
