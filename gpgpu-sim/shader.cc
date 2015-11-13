@@ -855,7 +855,7 @@ void scheduler_unit::cycle()
                     warp(warp_id).ibuffer_flush();
                 } else {
                     valid_inst = true;
-                    if ( !m_scoreboard->checkCollision(warp_id, pI) || m_shader->m_large_warp_staling ) {
+                    if ( !m_scoreboard->checkCollision(warp_id, pI) || m_shader->m_large_warp_stalling ) {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
                         ready_inst = true;
