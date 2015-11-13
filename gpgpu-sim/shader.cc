@@ -689,7 +689,8 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
     
-    m_warp[warp_id].ibuffer_free();
+	if (!m_large_warp_stalling)
+    	m_warp[warp_id].ibuffer_free();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
@@ -817,7 +818,7 @@ void scheduler_unit::cycle()
 	// large warp variables
 	active_mask_t subwarp_mask;
 
-	//if (!m_shader->m_large_warp_stalling)
+	if (!m_shader->m_large_warp_stalling)
         order_warps();
     for ( std::vector< shd_warp_t* >::const_iterator iter = m_next_cycle_prioritized_warps.begin();
           iter != m_next_cycle_prioritized_warps.end();
