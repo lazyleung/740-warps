@@ -293,7 +293,7 @@ struct core_config {
 
 // bounded stack that implements simt reconvergence using pdom mechanism from MICRO'07 paper
 // large warp size
-const unsigned MAX_WARP_SIZE = 64;
+const unsigned MAX_WARP_SIZE = 256;
 const unsigned MAX_SUBWARP_SIZE = 32;
 //const unsigned MAX_WARP_SIZE = 32;
 typedef std::bitset<MAX_WARP_SIZE> active_mask_t;
