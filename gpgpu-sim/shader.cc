@@ -691,6 +691,8 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     
 	if (!m_large_warp_stalling)
     	m_warp[warp_id].ibuffer_free();
+	if (m_large_warp_stalling)
+		m_warp[warp_id].inc_inst_in_pipeline();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
