@@ -817,7 +817,7 @@ void scheduler_unit::cycle()
 	// large warp variables
 	active_mask_t subwarp_mask;
 
-	if (!m_shader->m_large_warp_stalling)
+	//if (!m_shader->m_large_warp_stalling)
         order_warps();
     for ( std::vector< shd_warp_t* >::const_iterator iter = m_next_cycle_prioritized_warps.begin();
           iter != m_next_cycle_prioritized_warps.end();
