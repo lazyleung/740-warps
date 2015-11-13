@@ -860,8 +860,8 @@ void scheduler_unit::cycle()
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
 								subwarp_mask.reset();
-								for (int i = 0; i < MAX_SUBWARP_SIZE; i++) {
-									for (int j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
+								for (unsigned i = 0; i < MAX_SUBWARP_SIZE; i++) {
+									for (unsigned j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
 										if (active_mask.test(i + j)) {
 											subwarp_mask.set(i + j);
 											break;
@@ -882,8 +882,8 @@ void scheduler_unit::cycle()
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
 								subwarp_mask.reset();
-								for (int i = 0; i < MAX_SUBWARP_SIZE; i++) {
-									for (int j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
+								for (unsigned i = 0; i < MAX_SUBWARP_SIZE; i++) {
+									for (unsigned j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
 										if (active_mask.test(i + j)) {
 											subwarp_mask.set(i + j);
 											break;
@@ -891,7 +891,7 @@ void scheduler_unit::cycle()
 									}
 								}
 								//std::cout << "act_msk: " << active_mask << ", sw_msk: " << subwarp_mask;
-							m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
+								m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
 								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -899,8 +899,8 @@ void scheduler_unit::cycle()
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
 									subwarp_mask.reset();
-									for (int i = 0; i < MAX_SUBWARP_SIZE; i++) {
-										for (int j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
+									for (unsigned i = 0; i < MAX_SUBWARP_SIZE; i++) {
+										for (unsigned j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
 											if (active_mask.test(i + j)) {
 												subwarp_mask.set(i + j);
 												break;
