@@ -93,6 +93,7 @@ public:
         m_stores_outstanding=0;
         m_inst_in_pipeline=0;
         reset(); 
+		m_warp_num_inst = 0;
     }
     void reset()
     {
@@ -260,6 +261,9 @@ private:
 
     unsigned m_stores_outstanding; // number of store requests sent but not yet acknowledged
     unsigned m_inst_in_pipeline;
+
+	// for PROgress aware warp scheduling
+	unsigned m_warp_num_inst;
 };
 
 
@@ -295,6 +299,7 @@ enum concrete_scheduler
     CONCRETE_SCHEDULER_GTO,
     CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE,
     CONCRETE_SCHEDULER_WARP_LIMITING,
+	CONCRETE_SCHEDULER_PRO,
     NUM_CONCRETE_SCHEDULERS
 };
 
@@ -306,10 +311,11 @@ public:
                    register_set* sp_out,
                    register_set* sfu_out,
                    register_set* mem_out,
-                   int id) 
+                   int id, 
+				   concrete_scheduler type) 
         : m_supervised_warps(), m_stats(stats), m_shader(shader),
         m_scoreboard(scoreboard), m_simt_stack(simt), /*m_pipeline_reg(pipe_regs),*/ m_warp(warp),
-        m_sp_out(sp_out),m_sfu_out(sfu_out),m_mem_out(mem_out), m_id(id){}
+        m_sp_out(sp_out),m_sfu_out(sfu_out),m_mem_out(mem_out), m_id(id), m_type(type){}
     virtual ~scheduler_unit(){}
     virtual void add_supervised_warp_id(int i) {
         m_supervised_warps.push_back(&warp(i));
@@ -384,8 +390,33 @@ protected:
     register_set* m_sfu_out;
     register_set* m_mem_out;
 
+	// identification
+	concrete_scheduler m_type;
+
     int m_id;
 };
+
+/* PRO: Progress Aware Warp Scheduling */
+class pro_scheduler : public scheduler_unit {
+	public:
+		pro_scheduler(shader_core_stats* stats, shader_core_ctx* shader, 
+				Scoreboard* scoreboard, simt_stack** simt, std::vector<shd_warp_t>* warp,
+				register_set* sp_out, register_set* sfu_out, register_set* mem_out, int id,
+				concrete_scheduler type)
+			: scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type) {
+			m_cta_num_inst[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 };
+			m_kernel_cta_done[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = false };
+		}
+
+		virtual ~pro_scheduler() {}
+		virtual void order_warps();
+		virtual void done_adding_supervised_warps() {
+			m_last_supervised_issued = m_supervised_warps.end();
+		}
+	private:
+		unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];
+		bool m_kernel_cta_done[MAX_CTA_PER_SHADER];
+}
 
 class lrr_scheduler : public scheduler_unit {
 public:
@@ -395,8 +426,8 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
-                    int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ){}
+                    int id, concrete_scheduler type )
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ){}
 	virtual ~lrr_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -412,8 +443,8 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
-                    int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ){}
+                    int id, concrete_scheduler type )
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ){}
 	virtual ~gto_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -432,7 +463,7 @@ public:
                           register_set* sfu_out,
                           register_set* mem_out,
                           int id,
-                          char* config_str )
+                          char* config_str, concrete_scheduler type )
 	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ),
 	  m_pending_warps() 
     {
@@ -482,7 +513,7 @@ public:
                     register_set* sfu_out,
                     register_set* mem_out,
                     int id,
-                    char* config_string );
+                    char* config_string, concrete_scheduler type );
 	virtual ~swl_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {

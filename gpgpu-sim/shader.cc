@@ -137,6 +137,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                          CONCRETE_SCHEDULER_GTO :
                                          sched_config.find("warp_limiting") != std::string::npos ?
                                          CONCRETE_SCHEDULER_WARP_LIMITING:
+										 sched_config.find("pro") != std::string::npos ?
+										 CONCRETE_SCHEDULER_PRO :
                                          NUM_CONCRETE_SCHEDULERS;
     assert ( scheduler != NUM_CONCRETE_SCHEDULERS );
     
@@ -146,6 +148,20 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
             case CONCRETE_SCHEDULER_LRR:
                 schedulers.push_back(
                     new lrr_scheduler( m_stats,
+                                       this,
+                                       m_scoreboard,
+                                       m_simt_stack,
+                                       &m_warp,
+                                       &m_pipeline_reg[ID_OC_SP],
+                                       &m_pipeline_reg[ID_OC_SFU],
+                                       &m_pipeline_reg[ID_OC_MEM],
+                                       i
+                                     )
+                );
+                break;
+            case CONCRETE_SCHEDULER_PRO:
+                schedulers.push_back(
+                    new pro_scheduler( m_stats,
                                        this,
                                        m_scoreboard,
                                        m_simt_stack,
@@ -316,9 +332,6 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread, bool re
       m_warp[i].reset();
       m_simt_stack[i]->reset();
    }
-
-	m_large_warp_stalling = false;
-	m_decode = false;
 }
 
 void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsigned end_thread )

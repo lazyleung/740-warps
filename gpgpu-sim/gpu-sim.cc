@@ -1091,6 +1091,15 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     assert( nthreads_in_block > 0 && nthreads_in_block <= m_config->n_thread_per_shader); // should be at least one, but less than max
     m_cta_status[free_cta_hw_id]=nthreads_in_block;
 
+	if (kernel.no_more_ctas_to_run()) {
+		for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
+			if (it->m_type == CONCRETE_SCHEDULER_PRO) {
+				pro_scheduler* ps = dynamic_cast<pro_scheduler*>(it);
+				ps->m_kernel_cta_done[free_cta_hw_id] = true;
+			}
+		}
+	}
+
     // now that we know which warps are used in this CTA, we can allocate
     // resources for use in CTA-wide barrier operations
     m_barriers.allocate_barrier(free_cta_hw_id,warps);
