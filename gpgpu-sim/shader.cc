@@ -85,10 +85,6 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     m_sid = shader_id;
     m_tpc = tpc_id;
 
-	// large warp stalling
-	m_large_warp_stalling = false;
-    m_decode = false;
-   
     m_pipeline_reg.reserve(N_PIPELINE_STAGES);
     for (int j = 0; j<N_PIPELINE_STAGES; j++) {
         m_pipeline_reg.push_back(register_set(m_config->pipe_widths[j],pipeline_stage_name_decode[j]));
@@ -610,7 +606,6 @@ void shader_core_ctx::decode()
            }
         }
         m_inst_fetch_buffer.m_valid = false;
-		m_decode = true;
     }
 }
 
@@ -702,10 +697,8 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
     
-	if (!m_large_warp_stalling)
-    	m_warp[warp_id].ibuffer_free();
-	if (m_large_warp_stalling)
-		m_warp[warp_id].inc_inst_in_pipeline();
+    m_warp[warp_id].ibuffer_free();
+	m_warp[warp_id].inc_inst_in_pipeline();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
@@ -720,8 +713,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     }
 
     updateSIMTStack(warp_id,*pipe_reg);
-	if (!m_large_warp_stalling)
-    	m_scoreboard->reserveRegisters(*pipe_reg);
+    m_scoreboard->reserveRegisters(*pipe_reg);
     m_warp[warp_id].set_next_pc(next_inst->pc + next_inst->isize);
 }
 
@@ -831,11 +823,7 @@ void scheduler_unit::cycle()
     bool ready_inst = false;  // of the valid instructions, there was one not waiting for pending register writes
     bool issued_inst = false; // of these we issued one
 
-	// large warp variables
-	active_mask_t subwarp_mask;
-
-	if (!m_shader->m_large_warp_stalling)
-        order_warps();
+    order_warps();
     for ( std::vector< shd_warp_t* >::const_iterator iter = m_next_cycle_prioritized_warps.begin();
           iter != m_next_cycle_prioritized_warps.end();
           iter++ ) {
@@ -868,7 +856,7 @@ void scheduler_unit::cycle()
                     warp(warp_id).ibuffer_flush();
                 } else {
                     valid_inst = true;
-                    if ( !m_scoreboard->checkCollision(warp_id, pI) || m_shader->m_large_warp_stalling ) {
+                    if ( !m_scoreboard->checkCollision(warp_id, pI) ) {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
                         ready_inst = true;
@@ -876,19 +864,7 @@ void scheduler_unit::cycle()
                         assert( warp(warp_id).inst_in_pipeline() );
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
-								subwarp_mask.reset();
-								for (unsigned i = 0; i < MAX_SUBWARP_SIZE; i++) {
-									for (unsigned j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
-										if (active_mask.test(i + j)) {
-											subwarp_mask.set(i + j);
-											break;
-										}
-									}
-								}
-								//std::cout << "act_msk: " << active_mask << ", sw_msk: " << subwarp_mask;
-								m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
-								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
-                                //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
+                                m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
@@ -898,35 +874,13 @@ void scheduler_unit::cycle()
                             bool sfu_pipe_avail = m_sfu_out->has_free();
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
-								subwarp_mask.reset();
-								for (unsigned i = 0; i < MAX_SUBWARP_SIZE; i++) {
-									for (unsigned j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
-										if (active_mask.test(i + j)) {
-											subwarp_mask.set(i + j);
-											break;
-										}
-									}
-								}
-								//std::cout << "act_msk: " << active_mask << ", sw_msk: " << subwarp_mask;
-								m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
-								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id);
+								m_shader->issue_warp(*m_sp_out, pI, active_mask, warp_id);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
-									subwarp_mask.reset();
-									for (unsigned i = 0; i < MAX_SUBWARP_SIZE; i++) {
-										for (unsigned j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
-											if (active_mask.test(i + j)) {
-												subwarp_mask.set(i + j);
-												break;
-											}
-										}
-									}
-									//std::cout << "act_msk: " << active_mask << ", sw_msk: " << subwarp_mask;
-									m_shader->m_large_warp_stalling = m_shader->m_decode && (active_mask.count() > subwarp_mask.count());
-									m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, warp_id);
+									m_shader->issue_warp(*m_sfu_out, pI, active_mask, warp_id);
                                     issued++;
                                     issued_inst=true;
                                     warp_inst_issued = true;
@@ -944,7 +898,7 @@ void scheduler_unit::cycle()
                warp(warp_id).set_next_pc(pc);
                warp(warp_id).ibuffer_flush();
             }
-            if(warp_inst_issued && !m_shader->m_large_warp_stalling) {
+            if(warp_inst_issued) {
                 SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
                                (*iter)->get_warp_id(),
                                (*iter)->get_dynamic_warp_id(),
