@@ -479,30 +479,44 @@ class pro_scheduler : public scheduler_unit {
 				unsigned cta_a = a->get_cta_id();
 				unsigned cta_b = b->get_cta_id();
 	
-				if (!a || a->done_exit())
-					return false;
-	
-				if (!b || b->done_exit())
+				bool same_cta = cta_b == cta_a;
+				bool cta_id_comp = cta_b < cta_a;
+				bool warp_id_comp = a->get_warp_id() < b->get_warp_id();
+
+				if (!a || a->done_exit() || a->waiting())
+					return (!b || b->done_exit() || b->waiting()) ? (same_cta ? warp_id_comp : cta_id_comp) : false;
+
+				if (!b || b->done_exit() || b->waiting())
 					return true;
 	
-				if (cta_a == cta_b) {
+				if (same_cta) {
+					if (a->get_inst_comp() == b->get_inst_comp())
+						return warp_id_comp;
 					if (m_ps->m_cta_barr[cta_a] || m_ps->m_cta_exit[cta_a])
 						return a->get_inst_comp() < b->get_inst_comp();
 					else
 						return a->get_inst_comp() > b->get_inst_comp();
 				}
-	
+
+				bool cta_inst_comp = m_ps->m_cta_num_ins[cta_a] != m_ps->m_cta_num_ins[cta_b];
+				bool cta_inst_comp_up = cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : cta_id_comp;
+				bool cta_inst_comp_dn = cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] < m_ps->m_cta_num_inst[cta_b] : cta_id_comp;
+				bool a_exit = m_ps->m_cta_exit[cta_a];
+				bool b_exit = m_ps->m_cta_exit[cta_b];
+				bool a_barr = m_ps->m_cta_barr[cta_a];
+				bool b_barr = m_ps->m_cta_barr[cta_b];
+
 				if (m_ps->m_ctas_available) {
-					if (m_ps->m_cta_exit[cta_a]) 
-						return !m_ps->m_cta_exit[cta_b] || (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]);
-					if (m_ps->m_cta_barr[cta_a])
-						return !m_ps->m_cta_exit[cta_b] && (!m_ps->m_cta_barr[cta_b] || (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]));
-					return !m_ps->m_cta_exit[cta_b] && !m_ps->m_cta_barr[cta_b] && (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]);
+					if (a_exit) 
+						return !b_exit || cta_inst_comp_up;
+					if (a_barr)
+						return !b_exit && (!b_barr || cta_inst_comp_up);
+					return !b_exit && !b_barr && cta_inst_comp_up;
 				}
 				else {
-					if (m_ps->m_cta_barr[cta_a])
-						return !m_ps->m_cta_barr[cta_b] || (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]);
-					return !m_ps->m_cta_barr[cta_b] && (m_ps->m_cta_num_inst[cta_b] > m_ps->m_cta_num_inst[cta_a]);
+					if (a_barr)
+						return !b_barr || cta_inst_comp_up;
+					return !b_barr && cta_inst_comp_down;
 				}
 			}	
 		};
