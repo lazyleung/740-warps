@@ -478,7 +478,7 @@ class pro_scheduler : public scheduler_unit {
 				return !m_cta_barr[cta_b] && (m_cta_num_inst[cta_b] > m_cta_num_inst[cta_a]);
 			}
 		}
-}
+};
 
 class lrr_scheduler : public scheduler_unit {
 public:
