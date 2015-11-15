@@ -458,7 +458,7 @@ class pro_scheduler : public scheduler_unit {
 				return true;
 
 			if (cta_a == cta_b) {
-				if (m_cta_barrier[cta_a] || m_cta_exit[cta_a])
+				if (m_cta_barr[cta_a] || m_cta_exit[cta_a])
 					return a->get_inst_comp() < b->get_inst_comp();
 				else
 					return a->get_inst_comp() > b->get_inst_comp();
@@ -469,7 +469,7 @@ class pro_scheduler : public scheduler_unit {
 					return !m_cta_exit[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
 				if (m_cta_barr[cta_a])
 					return !m_cta_exit[cta_b] && (!m_cta_barr[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]));
-				return !m_cta_exit[cta_b] && !m_cta_barr[cta_b] && (m_cta_num_inst[cta_a] > m_cta_num_inst[b]);
+				return !m_cta_exit[cta_b] && !m_cta_barr[cta_b] && (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
 			}
 			else {
 				if (m_cta_barr[cta_a])
@@ -525,7 +525,7 @@ public:
                           register_set* mem_out,
                           int id,
                           char* config_str, concrete_scheduler type )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ),
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ),
 	  m_pending_warps() 
     {
         unsigned inner_level_readin;
