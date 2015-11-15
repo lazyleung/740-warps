@@ -1096,7 +1096,7 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
 		if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
 			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 			ps->init_cta(free_cta_hw_id);
-			m_ctas_available = m_gpu->get_more_cta_left();
+			ps->set_ctas_available(m_gpu->get_more_cta_left());
 		}
 	}
 

@@ -632,8 +632,15 @@ void shader_core_ctx::fetch()
                         did_exit=true;
                     }
                 }
-                if( did_exit ) 
+                if( did_exit ) {
                     m_warp[warp_id].set_done_exit();
+					for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); i++) {
+						if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
+							pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
+							ps->inc_warp_exit(m_warp[warp_id].get_cta_id());
+						}
+					}
+				}
             }
 
             // this code fetches instructions from the i-cache or generates memory requests

@@ -447,6 +447,12 @@ class pro_scheduler : public scheduler_unit {
 			if (!m_cta_warp_barr[cta])
 				m_cta_barr[cta] = false;
 		}
+		void set_ctas_available(bool more_cta_left) {
+			m_ctas_available = more_cta_left;
+		}
+		void inc_warp_exit(unsigned cta) {
+			m_cta_warp_exit[cta]++;
+		}
 	private:
 		unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];
 		unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER];
