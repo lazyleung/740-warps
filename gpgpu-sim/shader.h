@@ -498,7 +498,7 @@ class pro_scheduler : public scheduler_unit {
 						return a->get_inst_comp() > b->get_inst_comp();
 				}
 
-				bool cta_inst_comp = m_ps->m_cta_num_ins[cta_a] != m_ps->m_cta_num_ins[cta_b];
+				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
 				bool cta_inst_comp_up = cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : cta_id_comp;
 				bool cta_inst_comp_dn = cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] < m_ps->m_cta_num_inst[cta_b] : cta_id_comp;
 				bool a_exit = m_ps->m_cta_exit[cta_a];
@@ -516,7 +516,7 @@ class pro_scheduler : public scheduler_unit {
 				else {
 					if (a_barr)
 						return !b_barr || cta_inst_comp_up;
-					return !b_barr && cta_inst_comp_down;
+					return !b_barr && cta_inst_comp_dn;
 				}
 			}	
 		};
