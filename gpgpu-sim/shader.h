@@ -394,10 +394,10 @@ protected:
     register_set* m_mem_out;
 
     int m_id;
-}
+
 	// identification
-	enum concrete_scheduler m_type;
-;
+	concrete_scheduler m_type;
+};
 
 /* PRO: Progress Aware Warp Scheduling */
 class pro_scheduler : public scheduler_unit {
