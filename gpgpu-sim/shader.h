@@ -41,7 +41,6 @@
 #include <utility>
 #include <algorithm>
 #include <deque>
-#include <array>
 
 //#include "../cuda-sim/ptx.tab.h"
 
@@ -407,13 +406,12 @@ class pro_scheduler : public scheduler_unit {
 				Scoreboard* scoreboard, simt_stack** simt, std::vector<shd_warp_t>* warp,
 				register_set* sp_out, register_set* sfu_out, register_set* mem_out, int id,
 				concrete_scheduler type)
-			: scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type), m_cta_num_inst() : {{ [0 ... (MAX_CTA_PER_SHADER - 1)] }} {
-			//m_cta_num_inst = {{ [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 }};
-			m_cta_warp_exit = {{ [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 }};
-			m_cta_warp_barr = {{ [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 }};
-			m_cta_barr = {{ [0 ... (MAX_CTA_PER_SHADER - 1)] = false }};
-			m_cta_exit = {{ [0 ... (MAX_CTA_PER_SHADER - 1)] = false }};
-			//m_cta_kernel_done[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = false };
+			: scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type) {
+			memset(m_cta_num_inst, 0, MAX_CTA_PER_SHADER);
+			memset(m_cta_num_inst, 0, MAX_CTA_PER_SHADER);
+			memset(m_cta_num_inst, 0, MAX_CTA_PER_SHADER);
+			memset(m_cta_barr, false, MAX_CTA_PER_SHADER);
+			memset(m_cta_barr, false, MAX_CTA_PER_SHADER);
 			m_ctas_available = true;
 			m_cycles_since_order = 0;
 		}
@@ -440,11 +438,11 @@ class pro_scheduler : public scheduler_unit {
 				m_cta_barr[cta] = false;
 		}
 	private:
-		std::array<unsigned, MAX_CTA_PER_SHADER> m_cta_num_inst;
-		std::array<unsigned, MAX_CTA_PER_SHADER> m_cta_warp_exit;
-		std::array<unsigned, MAX_CTA_PER_SHADER> m_cta_warp_barr;
-		std::array<bool, MAX_CTA_PER_SHADER> m_cta_barrier;
-		std::array<bool, MAX_CTA_PER_SHADER> m_cta_exit;
+		unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];
+		unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER];
+		unsigned m_cta_warp_barr[MAX_CTA_PER_SHADER];
+		bool m_cta_barrier[MAX_CTA_PER_SHADER];
+		bool m_cta_exit[MAX_CTA_PER_SHADER];
 		//bool m_cta_kernel_done[MAX_CTA_PER_SHADER];
 		unsigned m_cycles_since_order;
 		bool m_ctas_available;
