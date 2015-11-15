@@ -1090,8 +1090,8 @@ swl_scheduler::swl_scheduler ( shader_core_stats* stats, shader_core_ctx* shader
                                register_set* sfu_out,
                                register_set* mem_out,
                                int id,
-                               char* config_string )
-    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id )
+                               char* config_string, concrete_scheduler type )
+    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type )
 {
     unsigned m_prioritization_readin;
     int ret = sscanf( config_string,
@@ -1321,7 +1321,7 @@ void shader_core_ctx::writeback()
         m_operand_collector.writeback(*pipe_reg);
         unsigned warp_id = pipe_reg->warp_id();
         m_scoreboard->releaseRegisters( pipe_reg );
-		if ((preg->op == BARRIER_OP) || (preg->op == MEMORY_BARRIER_OP)) {
+		if ((pipe_reg->op == BARRIER_OP) || (pipe_reg->op == MEMORY_BARRIER_OP)) {
 			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
 				if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
 					pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
