@@ -466,21 +466,21 @@ class pro_scheduler : public scheduler_unit {
 		unsigned m_cycles_since_order;
 		bool m_ctas_available;
 
-		bool m_sort_warps(std::vector<shd_warp_t*>::iterator a, std::vector<shd_warp_t*>::iterator b) {
-			unsigned cta_a = (*a)->get_cta_id();
-			unsigned cta_b = (*b)->get_cta_id();
+		bool m_sort_warps(const shd_warp_t* a, const shd_warp_t* b) {
+			unsigned cta_a = a->get_cta_id();
+			unsigned cta_b = b->get_cta_id();
 
-			if (!(*a) || (*a)->done_exit())
+			if (!a || a->done_exit())
 				return false;
 
-			if (!(*b) || (*b)->done_exit())
+			if (!b || b->done_exit())
 				return true;
 
 			if (cta_a == cta_b) {
 				if (m_cta_barr[cta_a] || m_cta_exit[cta_a])
-					return (*a)->get_inst_comp() < (*b)->get_inst_comp();
+					return a->get_inst_comp() < b->get_inst_comp();
 				else
-					return (*a)->get_inst_comp() > (*b)->get_inst_comp();
+					return a->get_inst_comp() > b->get_inst_comp();
 			}
 
 			if (m_ctas_available) {
