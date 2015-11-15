@@ -466,7 +466,7 @@ class pro_scheduler : public scheduler_unit {
 		unsigned m_cycles_since_order;
 		bool m_ctas_available;
 
-		bool m_sort_warps(shd_warp_t* a, shd_warp_t* b) {
+		bool m_sort_warps(shd_warp_t* a, shd_warp_t* b) const {
 			unsigned cta_a = a->get_cta_id();
 			unsigned cta_b = b->get_cta_id();
 
