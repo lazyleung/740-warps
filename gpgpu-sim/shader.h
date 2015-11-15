@@ -393,11 +393,11 @@ protected:
     register_set* m_sfu_out;
     register_set* m_mem_out;
 
+    int m_id;
+}
 	// identification
 	concrete_scheduler m_type;
-
-    int m_id;
-};
+;
 
 /* PRO: Progress Aware Warp Scheduling */
 class pro_scheduler : public scheduler_unit {
@@ -422,6 +422,13 @@ class pro_scheduler : public scheduler_unit {
 			m_last_supervised_issued = m_supervised_warps.end();
 		}
 
+		void init_cta(unsigned cta) {
+			m_cta_num_inst[cta] = 0;
+			m_cta_warp_exit[cta] = 0;
+			m_cta_warp_barr[cta] = 0;
+			m_cta_barr[cta] = false;
+			m_cta_exit[cta] = false;
+		}
 		void set_thread_exit(unsigned cta) {
 			m_cta_warp_exit[cta] = true;
 		}
