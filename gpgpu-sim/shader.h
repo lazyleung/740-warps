@@ -505,7 +505,7 @@ class pro_scheduler : public scheduler_unit {
 					return !m_ps->m_cta_barr[cta_b] && (m_ps->m_cta_num_inst[cta_b] > m_ps->m_cta_num_inst[cta_a]);
 				}
 			}	
-		}
+		};
 
 };
 
