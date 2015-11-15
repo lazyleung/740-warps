@@ -396,7 +396,7 @@ protected:
     int m_id;
 }
 	// identification
-	concrete_scheduler m_type;
+	enum concrete_scheduler m_type;
 ;
 
 /* PRO: Progress Aware Warp Scheduling */
