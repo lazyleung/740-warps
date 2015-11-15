@@ -231,6 +231,9 @@ public:
 	unsigned get_inst_comp() {
 		return m_warp_num_inst;
 	}
+	void inc_warp_num_inst(unsigned active_count) {
+		m_warp_num_inst += active_count;
+	}
 private:
     static const unsigned IBUFFER_SIZE=2;
     class shader_core_ctx *m_shader;

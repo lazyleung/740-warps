@@ -182,8 +182,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     &m_pipeline_reg[ID_OC_SFU],
                                                     &m_pipeline_reg[ID_OC_MEM],
                                                     i,
-												    CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE,
-                                                    config->gpgpu_scheduler_string
+                                                    config->gpgpu_scheduler_string,
+												    CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE
                                                   )
                 );
                 break;
@@ -213,8 +213,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
                                        i,
-									   CONCRETE_SCHEDULER_WARP_LIMITING,
-                                       config->gpgpu_scheduler_string
+                                       config->gpgpu_scheduler_string,
+									   CONCRETE_SCHEDULER_WARP_LIMITING
                                      )
                 );
                 break;
@@ -1276,11 +1276,11 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
 	  m_stats->m_num_sim_insn[m_sid] += inst.active_count();
 
 	// accounting for PROgress aware warp scheduling
-	m_warp[inst.warp_id()].m_warp_num_inst += inst.active_count();
+	m_warp[inst.warp_id()].inc_warp_num_inst(inst.active_count());
 	for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
 		if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
 			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
-			ps->inc_num_inst(m_warp[inst->warp_id()].get_cta_id(), inst.active_count());
+			ps->inc_num_inst(m_warp[inst.warp_id()].get_cta_id(), inst.active_count());
 		}
 	}
 
@@ -1321,8 +1321,8 @@ void shader_core_ctx::writeback()
         m_operand_collector.writeback(*pipe_reg);
         unsigned warp_id = pipe_reg->warp_id();
         m_scoreboard->releaseRegisters( pipe_reg );
-		if ((p_reg->op == BARRIER_OP) || (p_reg->op == MEMORY_BARRIER_OP)) {
-			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); i++) {
+		if ((preg->op == BARRIER_OP) || (preg->op == MEMORY_BARRIER_OP)) {
+			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
 				if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
 					pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 					ps->dec_barrier_op(m_warp[warp_id].get_cta_id());
@@ -3513,7 +3513,7 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned 
             m_warp[inst.warp_id()].ibuffer_flush();
 			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
 				if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
-					scheduler_unit* ps = dynamic_cast<pro_scheduler*>(*it);
+					pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 					ps->set_thread_exit(m_warp[inst.warp_id()].get_cta_id());
 				}
 			}
