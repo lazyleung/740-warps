@@ -456,6 +456,10 @@ class pro_scheduler : public scheduler_unit {
 		void inc_warp_exit(unsigned cta) {
 			m_cta_warp_exit[cta]++;
 		}
+		void sort() {
+			sort_struct s(this);
+			std::sort(m_supervised_warps.begin(), m_supervised_warps.end(), s);
+		}
 	private:
 		unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];
 		unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER];
@@ -466,36 +470,43 @@ class pro_scheduler : public scheduler_unit {
 		unsigned m_cycles_since_order;
 		bool m_ctas_available;
 
-		bool m_sort_warps(shd_warp_t* a, shd_warp_t* b) const {
-			unsigned cta_a = a->get_cta_id();
-			unsigned cta_b = b->get_cta_id();
+		struct sort_struct {
+			pro_scheduler* m_ps;
 
-			if (!a || a->done_exit())
-				return false;
+			sort_struct(pro_scheduler* ps) : m_ps(ps) {};
 
-			if (!b || b->done_exit())
-				return true;
-
-			if (cta_a == cta_b) {
-				if (m_cta_barr[cta_a] || m_cta_exit[cta_a])
-					return a->get_inst_comp() < b->get_inst_comp();
-				else
-					return a->get_inst_comp() > b->get_inst_comp();
-			}
-
-			if (m_ctas_available) {
-				if (m_cta_exit[cta_a]) 
-					return !m_cta_exit[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
-				if (m_cta_barr[cta_a])
-					return !m_cta_exit[cta_b] && (!m_cta_barr[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]));
-				return !m_cta_exit[cta_b] && !m_cta_barr[cta_b] && (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
-			}
-			else {
-				if (m_cta_barr[cta_a])
-					return !m_cta_barr[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
-				return !m_cta_barr[cta_b] && (m_cta_num_inst[cta_b] > m_cta_num_inst[cta_a]);
-			}
+			bool operator() (shd_warp_t* a, shd_warp_t* b) {
+				unsigned cta_a = a->get_cta_id();
+				unsigned cta_b = b->get_cta_id();
+	
+				if (!a || a->done_exit())
+					return false;
+	
+				if (!b || b->done_exit())
+					return true;
+	
+				if (cta_a == cta_b) {
+					if (m_ps->m_cta_barr[cta_a] || m_ps->m_cta_exit[cta_a])
+						return a->get_inst_comp() < b->get_inst_comp();
+					else
+						return a->get_inst_comp() > b->get_inst_comp();
+				}
+	
+				if (m_ps->m_ctas_available) {
+					if (m_ps->m_cta_exit[cta_a]) 
+						return !m_ps->m_cta_exit[cta_b] || (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]);
+					if (m_ps->m_cta_barr[cta_a])
+						return !m_ps->m_cta_exit[cta_b] && (!m_ps->m_cta_barr[cta_b] || (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]));
+					return !m_ps->m_cta_exit[cta_b] && !m_ps->m_cta_barr[cta_b] && (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]);
+				}
+				else {
+					if (m_ps->m_cta_barr[cta_a])
+						return !m_ps->m_cta_barr[cta_b] || (m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b]);
+					return !m_ps->m_cta_barr[cta_b] && (m_ps->m_cta_num_inst[cta_b] > m_ps->m_cta_num_inst[cta_a]);
+				}
+			}	
 		}
+
 };
 
 class lrr_scheduler : public scheduler_unit {

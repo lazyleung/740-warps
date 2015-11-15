@@ -984,7 +984,7 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t* lhs, shd_warp_t
 
 void pro_scheduler::order_warps() {
 	if (m_cycles_since_order >= 1000) {
-		std::sort(m_next_cycle_prioritized_warps.begin(), m_next_cycle_prioritized_warps.end(), std::bind(&pro_scheduler::m_sort_warps, this));
+		sort();
 		m_cycles_since_order = 0;
 	}
 
