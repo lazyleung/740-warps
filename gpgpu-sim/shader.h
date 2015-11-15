@@ -364,6 +364,9 @@ public:
     // m_supervised_warps with their scheduling policies
     virtual void order_warps() = 0;
 
+	concrete_scheduler get_type() {
+		return m_type;
+	}
 protected:
     virtual void do_on_warp_issued( unsigned warp_id,
                                     unsigned num_issued,
