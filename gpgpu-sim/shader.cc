@@ -710,7 +710,6 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     assert(pipe_reg);
     
     m_warp[warp_id].ibuffer_free();
-	m_warp[warp_id].inc_inst_in_pipeline();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
