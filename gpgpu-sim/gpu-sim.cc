@@ -1101,8 +1101,8 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
 
 	// initialize accounting for PROgress aware warp scheduler
 	for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
-		if (it->m_type == CONCRETE_SCHEDULER_PRO) {
-			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(it);
+		if ((*it)->m_type == CONCRETE_SCHEDULER_PRO) {
+			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 			ps->m_cta_num_inst[free_cta_hw_id] = 0;
 			ps->m_cta_warp_exit[free_cta_hw_id] = 0;
 			ps->m_cta_warp_barr[free_cta_hw_id] = 0;

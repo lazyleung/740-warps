@@ -141,14 +141,6 @@ public:
     void set_completed( unsigned lane ) 
     { 
         assert( m_active_threads.test(lane) );
-		if (!n_completed) {
-			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
-				if (it->m_type == CONCRETE_SCHEDULER_PRO) {
-					pro_scheduler* ps = dynamic_cast<pro_scheduler*>(it);
-					it->m_cta_exit[m_cta_id] = true;
-				}
-			}
-		}
         m_active_threads.reset(lane);
         n_completed++; 
     }
@@ -236,6 +228,9 @@ public:
     unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
     unsigned get_warp_id() const { return m_warp_id; }
 
+	unsigned get_inst_comp() {
+		return m_warp_num_inst;
+	}
 private:
     static const unsigned IBUFFER_SIZE=2;
     class shader_core_ctx *m_shader;
@@ -427,6 +422,22 @@ class pro_scheduler : public scheduler_unit {
 		virtual void done_adding_supervised_warps() {
 			m_last_supervised_issued = m_supervised_warps.end();
 		}
+
+		void set_thread_exit(unsigned cta) {
+			m_cta_warp_exit[cta] = true;
+		}
+		void inc_num_inst(unsigned cta, unsigned inc) {
+			m_cta_num_inst[cta] += inc;
+		}
+		void inc_barrier_op(unsigned cta) {
+			m_cta_warp_barr[cta]++;
+			m_cta_barr[cta] = true;
+		}
+		void dec_barrier_op(unsigned cta) {
+			m_cta_warp_barr[cta]--;
+			if (!m_cta_warp_barr[cta])
+				m_cta_barr[cta] = false;
+		}
 	private:
 		unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];
 		unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER];
@@ -438,8 +449,8 @@ class pro_scheduler : public scheduler_unit {
 		bool m_ctas_available;
 
 		bool m_sort_warps(shd_warp_t* a, shd_warp_t* b) {
-			unsigned cta_a = a->m_cta_id;
-			unsigned cta_b = b->m_cta_id;
+			unsigned cta_a = a->get_cta_id();
+			unsigned cta_b = b->get_cta_id();
 
 			if (!a || a->done_exit())
 				return false;
@@ -449,9 +460,9 @@ class pro_scheduler : public scheduler_unit {
 
 			if (cta_a == cta_b) {
 				if (m_cta_barrier[cta_a] || m_cta_exit[cta_a])
-					return a.m_warp_num_inst < b.m_warp_num_inst;
+					return a->get_inst_comp() < b->get_inst_comp();
 				else
-					return	a.m_warp_num_inst > b.m_warp_num_inst;
+					return a->get_inst_comp() > b->get_inst_comp();
 			}
 
 			if (m_ctas_available) {
