@@ -407,7 +407,7 @@ class pro_scheduler : public scheduler_unit {
 				register_set* sp_out, register_set* sfu_out, register_set* mem_out, int id,
 				concrete_scheduler type)
 			: scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type),
-			pro_scheduler_init() {
+			m_cycles_since_order() {
 			unsigned m_cta_num_inst[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 };
 			unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 };
 			unsigned m_cta_warp_barr[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 };
