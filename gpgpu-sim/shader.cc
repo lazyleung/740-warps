@@ -151,7 +151,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       i
+                                       i, 
+									   CONCRETE_SCHEDULER_LRR
                                      )
                 );
                 break;
@@ -165,7 +166,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       i
+                                       i,
+									   CONCRETE_SCHEDULER_PRO
                                      )
                 );
                 break;
@@ -180,6 +182,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     &m_pipeline_reg[ID_OC_SFU],
                                                     &m_pipeline_reg[ID_OC_MEM],
                                                     i,
+												    CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE,
                                                     config->gpgpu_scheduler_string
                                                   )
                 );
@@ -194,7 +197,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       i
+                                       i,
+									   CONCRETE_SCHEDULER_GTO
                                      )
                 );
                 break;
@@ -209,6 +213,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
                                        i,
+									   CONCRETE_SCHEDULER_WARP_LIMITING,
                                        config->gpgpu_scheduler_string
                                      )
                 );
@@ -1271,7 +1276,7 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
 	  m_stats->m_num_sim_insn[m_sid] += inst.active_count();
 
 	// accounting for PROgress aware warp scheduling
-	m_warp[inst->warp_id()].m_warp_num_inst += inst.active_count();
+	m_warp[inst.warp_id()].m_warp_num_inst += inst.active_count();
 	for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
 		if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
 			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
