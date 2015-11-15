@@ -959,6 +959,21 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t* lhs, shd_warp_t
     }
 }
 
+void pro_scheduler::order_warps() {
+	if (m_cycles_since_order >= 1000) {
+		std::sort(m_next_cycle_prioritized_warps.begin(), m_next_cycle_prioritized_warps.end(), m_sort_warps);
+		m_cycles_since_order = 0;
+	}
+
+	for (std::vector<shd_warp_t*>::iterator it = m_supervised_warps.begin(); it != m_supervised_warps.end(); it++) {
+		if (!(*it) || (*it)->done_exit())
+			continue;
+		m_next_cycle_prioritized_warps.push_back(*it);
+	}
+
+	m_cycles_since_order++;
+}
+
 void lrr_scheduler::order_warps()
 {
     order_lrr( m_next_cycle_prioritized_warps,
@@ -1236,6 +1251,15 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
 	  m_stats->m_num_sim_insn[m_sid] += m_config->warp_size;
   else
 	  m_stats->m_num_sim_insn[m_sid] += inst.active_count();
+
+	// accounting for PROgress aware warp scheduling
+	m_warp[inst->warp_id()].m_warp_num_inst += inst.active_count();
+	for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
+		if (it->m_type == CONCRETE_SCHEDULER_PRO) {
+			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(it);
+			it->m_cta_num_inst[m_warp[inst->warp_id()].m_cta_id] += inst.active_count();
+		}
+	}
 
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();

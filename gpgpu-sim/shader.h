@@ -141,6 +141,14 @@ public:
     void set_completed( unsigned lane ) 
     { 
         assert( m_active_threads.test(lane) );
+		if (!n_completed) {
+			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
+				if (it->m_type == CONCRETE_SCHEDULER_PRO) {
+					pro_scheduler* ps = dynamic_cast<pro_scheduler*>(it);
+					it->m_cta_exit[m_cta_id] = true;
+				}
+			}
+		}
         m_active_threads.reset(lane);
         n_completed++; 
     }
@@ -405,7 +413,13 @@ class pro_scheduler : public scheduler_unit {
 				concrete_scheduler type)
 			: scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type) {
 			m_cta_num_inst[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 };
-			m_kernel_cta_done[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = false };
+			m_cta_warp_exit[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 };
+			m_cta_warp_barr[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = 0 };
+			m_cta_barr[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = false };
+			m_cta_exit[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = false };
+			//m_cta_kernel_done[MAX_CTA_PER_SHADER] = { [0 ... (MAX_CTA_PER_SHADER - 1)] = false };
+			m_ctas_available = true;
+			m_cycles_since_order = 0;
 		}
 
 		virtual ~pro_scheduler() {}
@@ -415,7 +429,44 @@ class pro_scheduler : public scheduler_unit {
 		}
 	private:
 		unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];
-		bool m_kernel_cta_done[MAX_CTA_PER_SHADER];
+		unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER];
+		unsigned m_cta_warp_barr[MAX_CTA_PER_SHADER];
+		bool m_cta_barrier[MAX_CTA_PER_SHADER];
+		bool m_cta_exit[MAX_CTA_PER_SHADER];
+		//bool m_cta_kernel_done[MAX_CTA_PER_SHADER];
+		unsigned m_cycles_since_order;
+		bool m_ctas_available;
+
+		bool m_sort_warps(shd_warp_t* a, shd_warp_t* b) {
+			unsigned cta_a = a->m_cta_id;
+			unsigned cta_b = b->m_cta_id;
+
+			if (!a || a->done_exit())
+				return false;
+
+			if (!b || b->done_exit())
+				return true;
+
+			if (cta_a == cta_b) {
+				if (m_cta_barrier[cta_a] || m_cta_exit[cta_a])
+					return a.m_warp_num_inst < b.m_warp_num_inst;
+				else
+					return	a.m_warp_num_inst > b.m_warp_num_inst;
+			}
+
+			if (m_ctas_available) {
+				if (m_cta_exit[cta_a]) 
+					return !m_cta_exit[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
+				if (m_cta_barr[cta_a])
+					return !m_cta_exit[cta_b] && (!m_cta_barr[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]))
+				return !m_cta_exit[cta_b] && !m_cta_barr[cta_b] && (m_cta_num_inst[cta_a] > m_cta_num_inst[b]);
+			}
+			else {
+				if (m_cta_barr[cta_a])
+					return !m_cta_barr[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
+				return !m_cta_barr[cta_b] && (m_cta_num_inst[cta_b] > m_cta_num_inst[cta_a]);
+			}
+		}
 }
 
 class lrr_scheduler : public scheduler_unit {
