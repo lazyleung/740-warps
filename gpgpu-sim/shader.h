@@ -469,7 +469,7 @@ class pro_scheduler : public scheduler_unit {
 				if (m_cta_exit[cta_a]) 
 					return !m_cta_exit[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]);
 				if (m_cta_barr[cta_a])
-					return !m_cta_exit[cta_b] && (!m_cta_barr[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]))
+					return !m_cta_exit[cta_b] && (!m_cta_barr[cta_b] || (m_cta_num_inst[cta_a] > m_cta_num_inst[cta_b]));
 				return !m_cta_exit[cta_b] && !m_cta_barr[cta_b] && (m_cta_num_inst[cta_a] > m_cta_num_inst[b]);
 			}
 			else {
