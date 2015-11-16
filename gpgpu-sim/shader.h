@@ -108,6 +108,13 @@ public:
         m_last_fetch=0;
         m_next=0;
         m_inst_at_barrier=NULL;
+
+        m_last_inst_exec = 0LL;
+        m_stall_cycles = 0;
+        m_inst_disparity = 0;
+        m_start_cycle = gpu_sim_cycle;
+        m_inst_count = 0LL;
+        m_criticality = 0;
     }
     void init( address_type start_pc,
                unsigned cta_id,
@@ -124,6 +131,13 @@ public:
         n_completed   -= active.count(); // active threads are not yet completed
         m_active_threads = active;
         m_done_exit=false;
+        
+        m_last_inst_exec = 0LL;
+        m_stall_cycles = 0;
+        m_inst_disparity = 0;
+        m_start_cycle = gpu_sim_cycle;
+        m_inst_count = 0LL;
+        m_criticality = 0;
     }
 
     bool functional_done() const;
@@ -226,6 +240,12 @@ public:
 
     unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
     unsigned get_warp_id() const { return m_warp_id; }
+    unsigned get_criticality() { return m_criticality; }
+
+    void inc_inst_disparity(int increment);
+    void dec_inst_disparity();
+    void update_stall_cycles();
+    void update_criticality();
 
 private:
     static const unsigned IBUFFER_SIZE=2;
@@ -234,6 +254,12 @@ private:
     unsigned m_warp_id;
     unsigned m_warp_size;
     unsigned m_dynamic_warp_id;
+    unsigned long long m_last_inst_exec;    // Last gpu_sim_cycle of inst execution
+    unsigned m_stall_cycles;                // Total stalls over warp lifetime
+    unsigned m_inst_disparity;              // Instruction disparity
+    unsigned long long m_start_cycle;       // gpu_sim_cycle of start of warp execution
+    unsigned long long m_inst_count;        // Instructions Issued
+    unsigned m_criticality;                 // Criticality counter
 
     address_type m_next_pc;
     unsigned n_completed;          // number of threads in warp completed

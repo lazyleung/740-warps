@@ -837,6 +837,8 @@ void scheduler_unit::cycle()
                     // control hazard
                     warp(warp_id).set_next_pc(pc);
                     warp(warp_id).ibuffer_flush();
+
+                    (iter*)->inc_inst_disparity(abs(pc - pI->pc) + 1);
                 } else {
                     valid_inst = true;
                     if ( !m_scoreboard->checkCollision(warp_id, pI) ) {
@@ -868,7 +870,8 @@ void scheduler_unit::cycle()
                                     issued_inst=true;
                                     warp_inst_issued = true;
                                 }
-                            }                         }
+                            }                         
+                        }
                     } else {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) fails scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
@@ -887,6 +890,7 @@ void scheduler_unit::cycle()
                                (*iter)->get_dynamic_warp_id(),
                                issued );
                 do_on_warp_issued( warp_id, issued, iter );
+                (*iter)->update_stall_cycles();
             }
             checked++;
         }
@@ -905,6 +909,12 @@ void scheduler_unit::cycle()
             }
             break;
         } 
+    }
+
+    for ( std::vector< shd_warp_t* >::const_iterator iter = m_next_cycle_prioritized_warps.begin();
+          iter != m_next_cycle_prioritized_warps.end();
+          iter++ ) {
+        (*iter)->update_criticality();
     }
 
     // issue stall statistics:
@@ -1258,6 +1268,7 @@ void shader_core_ctx::writeback()
         unsigned warp_id = pipe_reg->warp_id();
         m_scoreboard->releaseRegisters( pipe_reg );
         m_warp[warp_id].dec_inst_in_pipeline();
+        m_warp[warp_id].dec_inst_disparity();
         warp_inst_complete(*pipe_reg);
         m_gpu->gpu_sim_insn_last_update_sid = m_sid;
         m_gpu->gpu_sim_insn_last_update = gpu_sim_cycle;
@@ -2907,6 +2918,37 @@ void shd_warp_t::print_ibuffer( FILE *fout ) const
         else fprintf(fout," <empty> ");
     }
     fprintf(fout,"\n");
+}
+
+// Criticality counter functions
+
+void shd_warp_t::inc_inst_disparity(unsigned increment)
+{
+    m_inst_disparity += increment;
+}
+
+void shd_warp_t::dec_inst_disparity()
+{
+    if(m_inst_disparity > 0)
+        m_inst_disparity--;
+}
+
+void shd_warp_t::update_stall_cycles()
+{
+    if(m_last_inst_exec != 0LL)
+        m_stall_cycles = (unsigned)(gpu_sim_cycle - m_last_inst_exec);
+    m_last_inst_exec = gpu_sim_cycle;
+    m_inst_count++;
+}
+
+void shd_warp_t::update_criticality()
+{   
+    float m_CPI = 0.0;
+    if (m_warps_inst != 0) {
+        float m_warp_count = (float)(gpu_sim_cycle - m_start_cycle);
+        m_CPI = m_warp_count / (float) m_inst_count;
+    }
+    m_criticality = (unsigned)((float)m_inst_disparity * m_CPI) + m_stall_cycles;
 }
 
 void opndcoll_rfu_t::add_cu_set(unsigned set_id, unsigned num_cu, unsigned num_dispatch){
