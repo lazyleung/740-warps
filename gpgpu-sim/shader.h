@@ -413,11 +413,11 @@ class pro_scheduler : public scheduler_unit {
 				register_set* sp_out, register_set* sfu_out, register_set* mem_out, int id,
 				concrete_scheduler type)
 			: scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type) {
-			memset(m_cta_num_inst, 0, MAX_CTA_PER_SHADER);
-			memset(m_cta_warp_exit, 0, MAX_CTA_PER_SHADER);
-			memset(m_cta_warp_barr, 0, MAX_CTA_PER_SHADER);
-			memset(m_cta_barr, false, MAX_CTA_PER_SHADER);
-			memset(m_cta_exit, false, MAX_CTA_PER_SHADER);
+			memset(m_cta_num_inst, 0, sizeof(m_cta_num_inst));
+			memset(m_cta_warp_exit, 0, sizeof(m_cta_warp_exit));
+			memset(m_cta_warp_barr, 0, sizeof(m_cta_warp_barr));
+			memset(m_cta_barr, false, sizeof(m_cta_barr));
+			memset(m_cta_exit, false, sizeof(m_cta_exit));
 			m_ctas_available = true;
 			m_cycles_since_order = 0;
 		}

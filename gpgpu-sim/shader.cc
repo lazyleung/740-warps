@@ -639,7 +639,7 @@ void shader_core_ctx::fetch()
                 }
                 if( did_exit ) {
                     m_warp[warp_id].set_done_exit();
-					for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); i++) {
+					for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
 						if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
 							pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 							ps->inc_warp_exit(m_warp[warp_id].get_cta_id());
