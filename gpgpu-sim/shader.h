@@ -321,6 +321,7 @@ enum concrete_scheduler
     CONCRETE_SCHEDULER_GTO,
     CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE,
     CONCRETE_SCHEDULER_WARP_LIMITING,
+    CONCRETE_SCHEDULER_GCAWS,
     NUM_CONCRETE_SCHEDULERS
 };
 
@@ -366,6 +367,7 @@ public:
         // No greedy scheduling based on last to issue. Only the priority function determines
         // priority
         ORDERED_PRIORITY_FUNC_ONLY,
+        PRIORITY_FUNC_THEN_GREEDY,
         NUM_ORDERING,
     };
     template < typename U >
@@ -376,6 +378,7 @@ public:
                             OrderingType age_ordering,
                             bool (*priority_func)(U lhs, U rhs) );
     static bool sort_warps_by_oldest_dynamic_id(shd_warp_t* lhs, shd_warp_t* rhs);
+    static bool sort_warps_by_criticality(shd_warp_t* lhs, shd_warp_t* rhs);
 
     // Derived classes can override this function to populate
     // m_supervised_warps with their scheduling policies
@@ -496,6 +499,26 @@ private:
     scheduler_prioritization_type m_inner_level_prioritization;
     scheduler_prioritization_type m_outer_level_prioritization;
 	unsigned m_max_active_warps;
+};
+
+class gcaws_scheduler : public scheduler_unit {
+public:
+    gcaws_scheduler ( shader_core_stats* stats, shader_core_ctx* shader,
+                    Scoreboard* scoreboard, simt_stack** simt,
+                    std::vector<shd_warp_t>* warp,
+                    register_set* sp_out,
+                    register_set* sfu_out,
+                    register_set* mem_out,
+                    int id )
+    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ){}
+    virtual ~gcaws_scheduler () {}
+    virtual void order_warps ();
+    virtual void done_adding_supervised_warps() {
+        // Oldest warp is greediest after init
+        // Assuming criticality all the same at init
+        m_last_supervised_issued = m_supervised_warps.begin();
+    }
+
 };
 
 // Static Warp Limiting Scheduler

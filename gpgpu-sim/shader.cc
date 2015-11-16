@@ -133,6 +133,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                          CONCRETE_SCHEDULER_GTO :
                                          sched_config.find("warp_limiting") != std::string::npos ?
                                          CONCRETE_SCHEDULER_WARP_LIMITING:
+                                         sched_config.find("gcaws") != std::string::npos ?
+                                         CONCRETE_SCHEDULER_GCAWS:
                                          NUM_CONCRETE_SCHEDULERS;
     assert ( scheduler != NUM_CONCRETE_SCHEDULERS );
     
@@ -194,6 +196,20 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_MEM],
                                        i,
                                        config->gpgpu_scheduler_string
+                                     )
+                );
+                break;
+            case CONCRETE_SCHEDULER_GCAWS:
+                schedulers.push_back(
+                    new gcaws_scheduler( m_stats,
+                                       this,
+                                       m_scoreboard,
+                                       m_simt_stack,
+                                       &m_warp,
+                                       &m_pipeline_reg[ID_OC_SP],
+                                       &m_pipeline_reg[ID_OC_SFU],
+                                       &m_pipeline_reg[ID_OC_MEM],
+                                       i
                                      )
                 );
                 break;
@@ -793,6 +809,36 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
         for ( unsigned count = 0; count < num_warps_to_add; ++count, ++iter ) {
             result_list.push_back( *iter );
         }
+    } else if ( PRIORITY_FUNC_THEN_GREEDY == ordering ) {
+        // Sort by Criticality
+        std::sort( temp.begin(), temp.end(), priority_func );
+
+        // Greedily execute until no more instructions available
+        T greedy_value = *last_issued_from_input;
+        result_list.push_back( greedy_value );
+
+        // Perform GTO within max_criticality warps
+        typename std::vector< T >::iterator iter = temp.begin();
+        T oldest = *iter;
+        unsigned max_criticality = (*iter)->get_criticality();
+        for ( unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
+            if ((*iter)->get_criticality() < max_criticality)
+                break;
+            if ( *iter->get_dynamic_warp_id() < oldest->get_dynamic_warp_id())
+                oldest = *iter;
+        }
+
+        // Prevent greedy being pushed twice
+        if ( oldest != greedy_value)
+            result_list.push_back( oldest );
+
+        // Push rest of warps
+        for ( unsigned count = 0; count < num_warps_to_add; ++count, ++iter ) {
+            // Prevent greedy and oldest being pushed twice
+            if ( *iter != greedy_value && *iter != oldest) {
+                result_list.push_back( *iter );
+            }
+        }
     } else {
         fprintf( stderr, "Unknown ordering - %d\n", ordering );
         abort();
@@ -952,6 +998,21 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t* lhs, shd_warp_t
     }
 }
 
+bool scheduler_unit::sort_warps_by_criticality(shd_warp_t* lhs, shd_warp_t* rhs)
+{
+    if (rhs && lhs) {
+        if ( lhs->done_exit() || lhs->waiting() ) {
+            return false;
+        } else if ( rhs->done_exit() || rhs->waiting() ) {
+            return true;
+        } else {
+            return lhs->get_criticality() > rhs->get_criticality();
+        }
+    } else {
+        return lhs > rhs;
+    }
+}
+
 void lrr_scheduler::order_warps()
 {
     order_lrr( m_next_cycle_prioritized_warps,
@@ -1038,27 +1099,14 @@ void two_level_active_scheduler::order_warps()
     assert( num_promoted == num_demoted );
 }
 
-swl_scheduler::swl_scheduler ( shader_core_stats* stats, shader_core_ctx* shader,
-                               Scoreboard* scoreboard, simt_stack** simt,
-                               std::vector<shd_warp_t>* warp,
-                               register_set* sp_out,
-                               register_set* sfu_out,
-                               register_set* mem_out,
-                               int id,
-                               char* config_string )
-    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id )
+void gcaws_scheduler::order_warps()
 {
-    unsigned m_prioritization_readin;
-    int ret = sscanf( config_string,
-                      "warp_limiting:%d:%d",
-                      &m_prioritization_readin,
-                      &m_num_warps_to_limit
-                     );
-    assert( 2 == ret );
-    m_prioritization = (scheduler_prioritization_type)m_prioritization_readin;
-    // Currently only GTO is implemented
-    assert( m_prioritization == SCHEDULER_PRIORITIZATION_GTO );
-    assert( m_num_warps_to_limit <= shader->get_config()->max_warps_per_shader );
+    order_by_priority( m_next_cycle_prioritized_warps,
+                       m_supervised_warps,
+                       m_last_supervised_issued,
+                       m_supervised_warps.size(),
+                       PRIORITY_FUNC_THEN_GREEDY,
+                       scheduler_unit::sort_warps_by_criticality );
 }
 
 void swl_scheduler::order_warps()
