@@ -169,7 +169,7 @@ bool Scoreboard::checkCollision( unsigned wid, const class inst_t *inst ) const
 
 	// Check for collision, get the intersection of reserved registers and instruction registers
 	std::set<int>::const_iterator it2;
-	active_mask_t mask = (dynamic_cast<warp_inst_t>(*inst)).get_active_mask();
+	active_mask_t mask = (dynamic_cast<warp_inst_t*>(inst))->get_active_mask();
 	for ( it2=inst_regs.begin() ; it2 != inst_regs.end(); it2++ ) {
 		for (unsigned i = 0; i < mask.size(); i++) {
 			if (mask[i] && (reg_table[wid][i].find(*it2) != reg_table[wid][i].end())) {
