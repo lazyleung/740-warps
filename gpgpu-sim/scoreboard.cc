@@ -39,6 +39,10 @@ Scoreboard::Scoreboard( unsigned sid, unsigned n_warps )
 	//Initialize size of table
 	reg_table.resize(n_warps);
 	longopregs.resize(n_warps);
+	for (unsigned i = 0; i < n_warps; i++) {
+		reg_table[i].resize(MAX_WARP_SIZE);
+		longopregs.resize(MAX_WARP_SIZE);
+	}
 }
 
 // Print scoreboard contents
