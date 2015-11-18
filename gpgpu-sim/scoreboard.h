@@ -44,7 +44,7 @@ public:
     void releaseRegisters(const warp_inst_t *inst);
     void releaseRegister(unsigned wid, active_mask_t lanes, unsigned regnum);
 
-    bool checkCollision(unsigned wid, /*const*/ inst_t *inst) const;
+    bool checkCollision(unsigned wid, const warp_inst_t *inst) const;
     bool pendingWrites(unsigned wid) const;
     void printContents() const;
     const bool islongop(unsigned warp_id, active_mask_t lanes, unsigned regnum);
