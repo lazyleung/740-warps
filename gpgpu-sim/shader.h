@@ -87,14 +87,14 @@ public:
 
 class shd_warp_t {
 public:
-    shd_warp_t( class shader_core_ctx *shader, unsigned warp_size) 
+    shd_warp_t( class shader_core_ctx *shader, unsigned warp_size, unsigned long long sim_cycle) 
         : m_shader(shader), m_warp_size(warp_size)
     {
         m_stores_outstanding=0;
         m_inst_in_pipeline=0;
-        reset(); 
+        reset(sim_cycle); 
     }
-    void reset()
+    void reset(unsigned long long sim_cycle)
     {
         assert( m_stores_outstanding==0);
         assert( m_inst_in_pipeline==0);
@@ -112,7 +112,7 @@ public:
         m_last_inst_exec = 0LL;
         m_stall_cycles = 0;
         m_inst_disparity = 0;
-        m_start_cycle = gpu_sim_cycle;
+        m_start_cycle = sim_cycle;
         m_inst_count = 0LL;
         m_criticality = 0;
     }
@@ -120,7 +120,8 @@ public:
                unsigned cta_id,
                unsigned wid,
                const std::bitset<MAX_WARP_SIZE> &active,
-               unsigned dynamic_warp_id )
+               unsigned dynamic_warp_id,
+               unsigned long long sim_cycle)
     {
         m_cta_id=cta_id;
         m_warp_id=wid;
@@ -135,7 +136,7 @@ public:
         m_last_inst_exec = 0LL;
         m_stall_cycles = 0;
         m_inst_disparity = 0;
-        m_start_cycle = gpu_sim_cycle;
+        m_start_cycle = sim_cycle;
         m_inst_count = 0LL;
         m_criticality = 0;
     }
@@ -242,7 +243,7 @@ public:
     unsigned get_warp_id() const { return m_warp_id; }
     unsigned get_criticality() { return m_criticality; }
 
-    void inc_inst_disparity(int increment);
+    void inc_inst_disparity(unsigned increment);
     void dec_inst_disparity();
     void update_stall_cycles();
     void update_criticality();

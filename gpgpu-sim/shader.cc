@@ -119,7 +119,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     snprintf(name, STRSIZE, "L1I_%03d", m_sid);
     m_L1I = new read_only_cache( name,m_config->m_L1I_config,m_sid,get_shader_instruction_cache_id(),m_icnt,IN_L1I_MISS_QUEUE);
     
-    m_warp.resize(m_config->max_warps_per_shader, shd_warp_t(this, warp_size));
+    m_warp.resize(m_config->max_warps_per_shader, shd_warp_t(this, warp_size, gpu_sim_cycle));
     m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader);
     
     //scedulers
@@ -325,7 +325,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread, bool re
       m_threadState[i].m_cta_id = -1;
    }
    for (unsigned i = start_thread / m_config->warp_size; i < end_thread / m_config->warp_size; ++i) {
-      m_warp[i].reset();
+      m_warp[i].reset(gpu_sim_cycle);
       m_simt_stack[i]->reset();
    }
 }
@@ -349,7 +349,7 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
                 }
             }
             m_simt_stack[i]->launch(start_pc,active_threads);
-            m_warp[i].init(start_pc,cta_id,i,active_threads, m_dynamic_warp_id);
+            m_warp[i].init(start_pc,cta_id,i,active_threads, m_dynamic_warp_id, gpu_sim_cycle);
             ++m_dynamic_warp_id;
             m_not_completed += n_active;
       }
@@ -824,7 +824,7 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
         for ( unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
             if ((*iter)->get_criticality() < max_criticality)
                 break;
-            if ( *iter->get_dynamic_warp_id() < oldest->get_dynamic_warp_id())
+            if ( (*iter)->get_dynamic_warp_id() < oldest->get_dynamic_warp_id())
                 oldest = *iter;
         }
 
@@ -884,7 +884,7 @@ void scheduler_unit::cycle()
                     warp(warp_id).set_next_pc(pc);
                     warp(warp_id).ibuffer_flush();
 
-                    (iter*)->inc_inst_disparity(abs(pc - pI->pc) + 1);
+                    (*iter)->inc_inst_disparity(abs(pc - pI->pc) + 1);
                 } else {
                     valid_inst = true;
                     if ( !m_scoreboard->checkCollision(warp_id, pI) ) {
@@ -2992,7 +2992,7 @@ void shd_warp_t::update_stall_cycles()
 void shd_warp_t::update_criticality()
 {   
     float m_CPI = 0.0;
-    if (m_warps_inst != 0) {
+    if (m_inst_count != 0) {
         float m_warp_count = (float)(gpu_sim_cycle - m_start_cycle);
         m_CPI = m_warp_count / (float) m_inst_count;
     }
