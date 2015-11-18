@@ -150,7 +150,7 @@ void Scoreboard::releaseRegisters(const class warp_inst_t *inst)
  * @return 
  * true if WAW or RAW hazard (no WAR since in-order issue)
  **/ 
-bool Scoreboard::checkCollision( unsigned wid, const class inst_t *inst ) const
+bool Scoreboard::checkCollision( unsigned wid, /*const*/ class inst_t *inst ) const
 {
 	// Get list of all input and output registers
 	std::set<int> inst_regs;
