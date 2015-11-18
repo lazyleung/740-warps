@@ -707,8 +707,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     }
 
     updateSIMTStack(warp_id,*pipe_reg);
-	if (!m_large_warp_stalling)
-    	m_scoreboard->reserveRegisters(*pipe_reg);
+    m_scoreboard->reserveRegisters(*pipe_reg);
     m_warp[warp_id].set_next_pc(next_inst->pc + next_inst->isize);
 }
 
@@ -1736,11 +1735,11 @@ void ldst_unit::writeback()
                         unsigned still_pending = --m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]];
                         if( !still_pending ) {
                             m_pending_writes[m_next_wb.warp_id()].erase(m_next_wb.out[r]);
-                            m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.out[r] );
+                            m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.get_active_mask(), m_next_wb.out[r] );
                             insn_completed = true; 
                         }
                     } else { // shared 
-                        m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.out[r] );
+                        m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.get_active_mask(), m_next_wb.out[r] );
                         insn_completed = true; 
                     }
                 }
