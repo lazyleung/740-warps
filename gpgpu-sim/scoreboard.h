@@ -47,7 +47,7 @@ public:
     bool checkCollision(unsigned wid, const inst_t *inst) const;
     bool pendingWrites(unsigned wid) const;
     void printContents() const;
-    const bool islongop(unsigned warp_id, unsigned regnum);
+    const bool islongop(unsigned warp_id, active_mask_t lanes, unsigned regnum);
 private:
     void reserveRegister(unsigned wid, active_mask_t lanes, unsigned regnum);
     int get_sid() const { return m_sid; }

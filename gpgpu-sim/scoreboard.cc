@@ -83,7 +83,7 @@ void Scoreboard::releaseRegister(unsigned wid, active_mask_t lanes, unsigned reg
 	        return;
 	    SHADER_DPRINTF( SCOREBOARD,
 	                    "Release register - warp:%d, lane:%d, reg: %d\n", wid, i, regnum );
-		reg_table[wid].erase(regnum);
+		reg_table[wid][i].erase(regnum);
 	}
 }
 
@@ -182,7 +182,7 @@ bool Scoreboard::checkCollision( unsigned wid, const class inst_t *inst ) const
 
 bool Scoreboard::pendingWrites(unsigned wid) const
 {
-	for (unsigned i = 0; i < reg_table[wid]; i++) {
+	for (unsigned i = 0; i < reg_table[wid].size(); i++) {
 		if (!reg_table[wid][i].empty())
 			return true;
 	}

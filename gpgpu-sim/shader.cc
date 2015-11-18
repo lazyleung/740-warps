@@ -1040,7 +1040,7 @@ void two_level_active_scheduler::order_warps()
         for (int i=0; i<4; i++){
             const warp_inst_t* inst = (*iter)->ibuffer_next_inst();
             //Is the instruction waiting on a long operation?
-            if ( inst && inst->in[i] > 0 && this->m_scoreboard->islongop((*iter)->get_warp_id(), inst->in[i])){
+            if ( inst && inst->in[i] > 0 && this->m_scoreboard->islongop((*iter)->get_warp_id(), inst->get_active_mask(), inst->in[i])){
                 waiting = true;
             }
         }
