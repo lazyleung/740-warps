@@ -227,6 +227,12 @@ public:
     unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
     unsigned get_warp_id() const { return m_warp_id; }
 
+	active_mask_t get_lw_mask() {
+		return m_lw_active_mask;
+	}
+	void set_lw_mask(active_mask_t mask) {
+		m_lw_active_mask = mask;
+	}
 private:
     static const unsigned IBUFFER_SIZE=2;
     class shader_core_ctx *m_shader;
@@ -260,6 +266,8 @@ private:
 
     unsigned m_stores_outstanding; // number of store requests sent but not yet acknowledged
     unsigned m_inst_in_pipeline;
+
+	active_mask_t m_lw_active_mask;
 };
 
 
@@ -1811,7 +1819,7 @@ public:
     opndcoll_rfu_t            m_operand_collector;
 
 	//large warp stalling variable
-	bool m_large_warp_stalling;
+	bool m_large_warp_stalling[MAX_THREAD_PER_SM / MAX_WARP_SIZE];
 	bool m_decode;
 
     //schedule

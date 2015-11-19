@@ -41,7 +41,7 @@ Scoreboard::Scoreboard( unsigned sid, unsigned n_warps )
 	longopregs.resize(n_warps);
 	for (unsigned i = 0; i < n_warps; i++) {
 		reg_table[i].resize(MAX_WARP_SIZE);
-		longopregs.resize(MAX_WARP_SIZE);
+		longopregs[i].resize(MAX_WARP_SIZE);
 	}
 }
 
@@ -125,8 +125,10 @@ void Scoreboard::reserveRegisters(const class warp_inst_t* inst)
                                 "New longopreg marked - warp:%d, reg: %d\n",
                                 inst->warp_id(),
                                 inst->out[r] );
-				for (unsigned i = 0; i < inst->get_active_mask().size(); i++)
-                	longopregs[inst->warp_id()][inst->get_active_mask()[i]].insert(inst->out[r]);
+				for (unsigned i = 0; i < inst->get_active_mask().size(); i++) {
+					if (inst->get_active_mask()[i])
+                		longopregs[inst->warp_id()][i].insert(inst->out[r]);
+				}
             }
     	}
     }
@@ -142,8 +144,10 @@ void Scoreboard::releaseRegisters(const class warp_inst_t *inst)
                             inst->warp_id(),
                             inst->out[r] );
             releaseRegister(inst->warp_id(), inst->get_active_mask(), inst->out[r]);
-			for (unsigned i = 0; i < inst->get_active_mask().size(); i++)
-            	longopregs[inst->warp_id()][inst->get_active_mask()[i]].erase(inst->out[r]);
+			for (unsigned i = 0; i < inst->get_active_mask().size(); i++) {
+				if (inst->get_active_mask()[i]) 
+	            	longopregs[inst->warp_id()][i].erase(inst->out[r]);
+			}
         }
     }
 }
@@ -154,7 +158,7 @@ void Scoreboard::releaseRegisters(const class warp_inst_t *inst)
  * @return 
  * true if WAW or RAW hazard (no WAR since in-order issue)
  **/ 
-bool Scoreboard::checkCollision( unsigned wid, const class warp_inst_t *inst ) const
+bool Scoreboard::checkCollision( unsigned wid, active_mask_t mask, const class inst_t *inst ) const
 {
 	// Get list of all input and output registers
 	std::set<int> inst_regs;
@@ -173,12 +177,13 @@ bool Scoreboard::checkCollision( unsigned wid, const class warp_inst_t *inst ) c
 
 	// Check for collision, get the intersection of reserved registers and instruction registers
 	std::set<int>::const_iterator it2;
-	active_mask_t mask = inst->get_active_mask();
 	for (unsigned i = 0; i < mask.size(); i++) {
-		if (mask[i]) 
-			for ( it2=inst_regs.begin() ; it2 != inst_regs.end(); it2++ )
+		if (mask[i]) { 
+			for ( it2=inst_regs.begin() ; it2 != inst_regs.end(); it2++ ) {
 				if (reg_table[wid][i].find(*it2) != reg_table[wid][i].end())
 					return true;
+			}
+		}
 	}
 	return false;
 }
