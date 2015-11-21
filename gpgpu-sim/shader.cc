@@ -1223,8 +1223,10 @@ void shader_core_ctx::execute()
                 m_result_bus[resbus]->set( (*ready_reg)->latency );
                 m_fu[n]->issue( issue_inst );
             } else if( !schedule_wb_now ) {
+				printf("stalls\n");
                 m_fu[n]->issue( issue_inst );
             } else {
+				printf("fuck\n");
                 // stall issue (cannot reserve result bus)
             }
         }
@@ -1319,6 +1321,8 @@ void shader_core_ctx::writeback()
         unsigned warp_id = pipe_reg->warp_id();
 		printf("%u, %u\t", warp_id, pipe_reg->get_uid());
         m_scoreboard->releaseRegisters( pipe_reg );
+		if (pipe_reg->get_uid() == 120)
+			m_scoreboard->printContents();
         m_warp[warp_id].dec_inst_in_pipeline();
         warp_inst_complete(*pipe_reg);
 		std::cout << pipe_reg->get_active_mask();
