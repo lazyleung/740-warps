@@ -684,9 +684,13 @@ bool baseline_cache::bandwidth_management::fill_port_free() const
 void baseline_cache::cycle(){
     if ( !m_miss_queue.empty() ) {
         mem_fetch *mf = m_miss_queue.front();
+		if (mf->get_inst().get_uid() == 68)
+			printf("68 miss\n");
         if ( !m_memport->full(mf->size(),mf->get_is_write()) ) {
             m_miss_queue.pop_front();
             m_memport->push(mf);
+			if (mf->get_inst().get_uid() == 68)
+				printf("68 rq\n");
         }
     }
     bool data_port_busy = !m_bandwidth_management.data_port_free(); 

@@ -1403,6 +1403,10 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, war
     if( !cache->data_port_free() ) 
         return DATA_PORT_STALL; 
 
+	bool inst68 = inst.get_uid() == 68;
+	if (inst68)
+		printf("processing?\n");
+
     //const mem_access_t &access = inst.accessq_back();
     mem_fetch *mf = m_mf_allocator->alloc(inst,inst.accessq_back());
     std::list<cache_event> events;
@@ -1416,6 +1420,11 @@ bool ldst_unit::constant_cycle( warp_inst_t &inst, mem_stage_stall_type &rc_fail
        return true;
    if( inst.active_count() == 0 ) 
        return true;
+
+	bool inst68 = inst.get_uid() == 68;
+	if (inst68)
+		printf("constant cycle\n");
+
    mem_stage_stall_type fail = process_memory_access_queue(m_L1C,inst);
    if (fail != NO_RC_FAIL){ 
       rc_fail = fail; //keep other fails if this didn't fail.
@@ -1881,6 +1890,8 @@ void ldst_unit::cycle()
                mf->set_status(IN_SHADER_FETCHED,gpu_sim_cycle+gpu_tot_sim_cycle);
                m_L1C->fill(mf,gpu_sim_cycle+gpu_tot_sim_cycle);
                m_response_fifo.pop_front(); 
+				if (mf->get_inst().get_uid() == 68)
+					printf("GOTITBACK 68\n");
            }
        } else {
     	   if( mf->get_type() == WRITE_ACK || ( m_config->gpgpu_perfect_mem && mf->get_is_write() )) {
@@ -1934,9 +1945,15 @@ void ldst_unit::cycle()
       return;
    }
 
+	bool pipe68 = pipe_reg.get_uid() == 68;
+	if (pipe68)
+		printf("GOT 68\n");
+
    if( !pipe_reg.empty() ) {
        unsigned warp_id = pipe_reg.warp_id();
        if( pipe_reg.is_load() ) {
+			if (pipe68)
+				printf("68 LOAD\n");
            if( pipe_reg.space.get_type() == shared_space ) {
                if( m_pipeline_reg[2]->empty() ) {
                    // new shared memory request
@@ -1948,6 +1965,8 @@ void ldst_unit::cycle()
                //    if( !m_operand_collector->writeback(pipe_reg) ) 
                //        return;
                //} 
+				if (pipe68)
+					printf("68 NOT SHARED\n");
 
                bool pending_requests=false;
                for( unsigned r=0; r<4; r++ ) {
