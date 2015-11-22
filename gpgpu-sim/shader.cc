@@ -851,7 +851,7 @@ void scheduler_unit::cycle()
 
 					// LWM
 					const active_mask_t temp_mask = m_simt_stack[warp_id]->get_active_mask();
-					active_mask_t active_mask = warp(warp_id).get_lw_stall() ? warp(warp_id).get_lw_active_mask : temp_mask;
+					active_mask_t active_mask = warp(warp_id).get_lw_stall() ? warp(warp_id).get_lw_active_mask() : temp_mask;
 					active_mask_t subwarp_mask;
 					for (unsigned i = 0; i < MAX_SUBWARP_SIZE; i++) {
 						for (unsigned j = 0; j < MAX_WARP_SIZE; j += MAX_SUBWARP_SIZE) {
@@ -3473,7 +3473,7 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned 
         }
         if ( ptx_thread_done(tid) ) {
             m_warp[inst.warp_id()].set_completed(t);
-			if (!m_warp[inst.warp_id()].get_lw_stall)
+			if (!m_warp[inst.warp_id()].get_lw_stall())
 	            m_warp[inst.warp_id()].ibuffer_flush();
         }
 
