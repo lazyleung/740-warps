@@ -108,6 +108,7 @@ public:
         m_last_fetch=0;
         m_next=0;
         m_inst_at_barrier=NULL;
+		m_lw_stall = false;
     }
     void init( address_type start_pc,
                unsigned cta_id,
@@ -124,6 +125,7 @@ public:
         n_completed   -= active.count(); // active threads are not yet completed
         m_active_threads = active;
         m_done_exit=false;
+		m_lw_stall = false;
     }
 
     bool functional_done() const;
@@ -227,6 +229,18 @@ public:
     unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
     unsigned get_warp_id() const { return m_warp_id; }
 
+	void set_lw_stall(bool stall) {
+		m_lw_stall = stall;
+	}
+	bool get_lw_stall() {
+		return m_lw_stall;
+	}
+	active_mask_t get_lw_active_mask() {
+		return m_lw_active_mask;
+	}
+	void set_lw_active_mask(active_mask_t mask) {
+		m_lw_active_mask = mask;
+	}
 private:
     static const unsigned IBUFFER_SIZE=2;
     class shader_core_ctx *m_shader;
@@ -238,6 +252,10 @@ private:
     address_type m_next_pc;
     unsigned n_completed;          // number of threads in warp completed
     std::bitset<MAX_WARP_SIZE> m_active_threads;
+
+	// LWM
+	bool m_lw_stall;
+	active_mask_t m_lw_active_mask;
 
     bool m_imiss_pending;
     
@@ -1736,6 +1754,11 @@ public:
 	 void inc_simt_to_mem(unsigned n_flits){ m_stats->n_simt_to_mem[m_sid] += n_flits; }
 	 bool check_if_non_released_reduction_barrier(warp_inst_t &inst);
 
+	// LWM
+	bool get_lw_stall(unsigned warp_id) {
+		return m_warp[warp_id].get_lw_stall();
+	}
+
 	private:
 	 unsigned inactive_lanes_accesses_sfu(unsigned active_count,double latency){
       return  ( ((32-active_count)>>1)*latency) + ( ((32-active_count)>>3)*latency) + ( ((32-active_count)>>3)*latency);
@@ -1790,6 +1813,9 @@ public:
     unsigned m_cta_status[MAX_CTA_PER_SHADER]; // CTAs status 
     unsigned m_not_completed; // number of threads to be completed (==0 when all thread on this core completed) 
     std::bitset<MAX_THREAD_PER_SM> m_active_threads;
+
+	// LWM
+	bool m_decode;
     
     // thread contexts 
     thread_ctx_t             *m_threadState;
