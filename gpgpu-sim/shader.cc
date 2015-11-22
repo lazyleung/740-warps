@@ -687,7 +687,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
 
-	if (m_warp[warp_id].get_lw_stalling())    
+	if (m_warp[warp_id].get_lw_stall())    
 	    m_warp[warp_id].ibuffer_free();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
@@ -703,7 +703,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     }
 
     updateSIMTStack(warp_id,*pipe_reg);
-	if (!m_warp[warp_id].get_lw_stalling) {
+	if (!m_warp[warp_id].get_lw_stall()) {
 		m_scoreboard->reserveRegisters(*pipe_reg);
     	m_warp[warp_id].set_next_pc(next_inst->pc + next_inst->isize);
 	}
@@ -868,7 +868,7 @@ void scheduler_unit::cycle()
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
                         ready_inst = true;
-                        const active_mask_t &active_mask = m_simt_stack[warp_id]->get_active_mask();
+                        //const active_mask_t &active_mask = m_simt_stack[warp_id]->get_active_mask();
                         assert( warp(warp_id).inst_in_pipeline() );
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
