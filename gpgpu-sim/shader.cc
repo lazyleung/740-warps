@@ -875,6 +875,7 @@ void scheduler_unit::cycle()
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
 								warp(warp_id).set_lw_stall(lw_stall);
+								warp(warp_id).set_lw_active_mask(active_mask);
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
@@ -887,6 +888,7 @@ void scheduler_unit::cycle()
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
 								warp(warp_id).set_lw_stall(lw_stall);
+								warp(warp_id).set_lw_active_mask(active_mask);
 								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id);
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
@@ -895,6 +897,7 @@ void scheduler_unit::cycle()
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
 									warp(warp_id).set_lw_stall(lw_stall);
+									warp(warp_id).set_lw_active_mask(active_mask);
 									m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, warp_id);
                                     //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
                                     issued++;
