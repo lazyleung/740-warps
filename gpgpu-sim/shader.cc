@@ -687,8 +687,10 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
 
-	if (m_warp[warp_id].get_lw_stall())    
+	if (!m_warp[warp_id].get_lw_stall())    
 	    m_warp[warp_id].ibuffer_free();
+	else 
+		m_warp[warp_id].inc_inst_in_pipeline();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
@@ -1287,10 +1289,9 @@ void shader_core_ctx::writeback()
 
         m_operand_collector.writeback(*pipe_reg);
         unsigned warp_id = pipe_reg->warp_id();
-		if (!m_warp[warp_id].get_lw_stall()) {
+		if (!m_warp[warp_id].get_lw_stall()) 
 	        m_scoreboard->releaseRegisters( pipe_reg );
-        	m_warp[warp_id].dec_inst_in_pipeline();
-		}
+        m_warp[warp_id].dec_inst_in_pipeline();
 	    warp_inst_complete(*pipe_reg);
         m_gpu->gpu_sim_insn_last_update_sid = m_sid;
         m_gpu->gpu_sim_insn_last_update = gpu_sim_cycle;
