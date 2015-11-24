@@ -832,7 +832,7 @@ void scheduler_unit::cycle()
         unsigned checked=0;
         unsigned issued=0;
         unsigned max_issue = m_shader->m_config->gpgpu_max_insn_issue_per_warp;
-        while( !warp(warp_id).waiting() && !warp(warp_id).ibuffer_empty() && (checked < max_issue) && (checked <= issued) && (issued < max_issue) ) {
+        while( (!warp(warp_id).waiting() || warp(warp_id).get_lw_stall()) && !warp(warp_id).ibuffer_empty() && (checked < max_issue) && (checked <= issued) && (issued < max_issue) ) {
 			m_stats->m_while_cnt++;
             const warp_inst_t *pI = warp(warp_id).ibuffer_next_inst();
             bool valid = warp(warp_id).ibuffer_next_valid();
