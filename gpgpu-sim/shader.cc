@@ -452,7 +452,7 @@ void shader_core_stats::print( FILE* fout ) const
    for (unsigned i = 3; i < m_config->warp_size + 3; i++) 
       fprintf(fout, "\tW%d:%d", i-2, shader_cycle_distro[i]);
    fprintf(fout, "\n");
-	fprintf(fout, "Warp Div: %u\tWarp Ret: %u\tWhile Count: %u\n", m_warp_div, m_warp_ret, m_while_cnt);
+	fprintf(fout, "Warp Div: %u\tWarp Ret: %u\tWhile Count: %u\tFor Entry: %u\n", m_warp_div, m_warp_ret, m_while_cnt, m_for_entry);
 
    m_outgoing_traffic_stats->print(fout); 
    m_incoming_traffic_stats->print(fout); 
@@ -826,6 +826,7 @@ void scheduler_unit::cycle()
         if ( (*iter) == NULL || (*iter)->done_exit() ) {
             continue;
         }
+		m_stats->m_for_entry++;
         SCHED_DPRINTF( "Testing (warp_id %u, dynamic_warp_id %u)\n",
                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
         unsigned warp_id = (*iter)->get_warp_id();
