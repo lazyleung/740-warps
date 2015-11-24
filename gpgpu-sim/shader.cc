@@ -452,6 +452,7 @@ void shader_core_stats::print( FILE* fout ) const
    for (unsigned i = 3; i < m_config->warp_size + 3; i++) 
       fprintf(fout, "\tW%d:%d", i-2, shader_cycle_distro[i]);
    fprintf(fout, "\n");
+	fprintf(fout, "Warp Div: %u\tWarp Ret: %u\n", m_warp_div, m_warp_ret);
 
    m_outgoing_traffic_stats->print(fout); 
    m_incoming_traffic_stats->print(fout); 
@@ -848,6 +849,7 @@ void scheduler_unit::cycle()
                     // control hazard
                     warp(warp_id).set_next_pc(pc);
                     warp(warp_id).ibuffer_flush();
+					m_stats->m_warp_div++;
                 } else {
                     valid_inst = true;
 
@@ -904,7 +906,8 @@ void scheduler_unit::cycle()
                                     issued_inst=true;
                                     warp_inst_issued = true;
                                 }
-                            }                         }
+                            }                         
+						}
                     } else {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) fails scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
@@ -916,6 +919,7 @@ void scheduler_unit::cycle()
                               (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
                warp(warp_id).set_next_pc(pc);
                warp(warp_id).ibuffer_flush();
+				m_stats->m_warp_ret++;
             }
             if(warp_inst_issued && !warp(warp_id).get_lw_stall()) {
                 SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",

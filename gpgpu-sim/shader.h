@@ -1482,6 +1482,9 @@ public:
 
         m_shader_dynamic_warp_issue_distro.resize( config->num_shader() );
         m_shader_warp_slot_issue_distro.resize( config->num_shader() );
+
+		m_warp_div = 0;
+		m_warp_ret = 0;
     }
 
     ~shader_core_stats()
@@ -1514,6 +1517,9 @@ public:
     {
         return m_shader_warp_slot_issue_distro;
     }
+
+	unsigned m_warp_ret;
+	unsigned m_warp_div;
 
 private:
     const shader_core_config *m_config;
