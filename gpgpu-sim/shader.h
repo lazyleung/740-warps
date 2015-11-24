@@ -109,6 +109,7 @@ public:
         m_next=0;
         m_inst_at_barrier=NULL;
 		m_lw_stall = false;
+		m_current_subwarps = NULL;
     }
     void init( address_type start_pc,
                unsigned cta_id,
@@ -126,6 +127,7 @@ public:
         m_active_threads = active;
         m_done_exit=false;
 		m_lw_stall = false;
+		m_current_subwarps = NULL;
     }
 
     bool functional_done() const;
@@ -230,10 +232,21 @@ public:
     unsigned get_warp_id() const { return m_warp_id; }
 
 	void set_lw_stall(bool stall) {
+		if (!m_lw_stall && stall)
+			m_current_subwarps = new std::set<warp_inst_t*>();
+		else if (m_lw_stall && !stall) 
+			m_current_subwarps = NULL;
 		m_lw_stall = stall;
 	}
 	bool get_lw_stall() {
 		return m_lw_stall;
+	}
+	void add_subwarp(warp_inst_t* inst) {
+		m_current_subwarps->insert(inst);
+		inst->set_subwarp(m_current_subwarps);
+	}
+	bool check_subwarp(warp_inst_t* inst) {
+		return m_current_subwarps == NULL ? false : m_current_subwarps.find(inst) != m_current_subwarps.end();
 	}
 	active_mask_t get_lw_active_mask() {
 		return m_lw_active_mask;
@@ -256,6 +269,7 @@ private:
 	// LWM
 	bool m_lw_stall;
 	active_mask_t m_lw_active_mask;
+	std::set<warp_inst_t*>* m_current_subwarps;
 
     bool m_imiss_pending;
     
@@ -1767,8 +1781,8 @@ public:
 	 bool check_if_non_released_reduction_barrier(warp_inst_t &inst);
 
 	// LWM
-	bool get_lw_stall(unsigned warp_id) {
-		return m_warp[warp_id].get_lw_stall();
+	bool get_lw_stall(warp_inst_t* inst) {
+		return inst->get_lw_stall(&m_warp[inst->warp_id()]);
 	}
 
 	private:

@@ -812,6 +812,7 @@ public:
         m_uid=0;
         m_empty=true; 
         m_config=NULL; 
+		m_current_subwarps = NULL;
     }
     warp_inst_t( const core_config *config ) 
     { 
@@ -824,6 +825,7 @@ public:
         m_mem_accesses_created=false;
         m_cache_hit=false;
         m_is_printf=false;
+		m_current_subwarps = NULL;
     }
     virtual ~warp_inst_t(){
     }
@@ -966,6 +968,21 @@ public:
     void print( FILE *fout ) const;
     unsigned get_uid() const { return m_uid; }
 
+	void set_subwarp(std::set<warp_inst_t*>* subwarps) {
+		m_current_subwarps = subwarps;
+	}
+	void unset_subwarp() {
+		m_current_subwarps->erase(&this);
+		if (m_current_subwarps->size() == 0) {
+			delete m_current_subwarps;
+			m_current_subwarps = NULL;
+		}
+		else
+			m_current_subwarps = NULL;
+	}
+	bool get_lw_stall(shd_warp_t* warp) {
+		return m_current_subwarps == NULL ? 0 : (m_current_subwarps->size() > 1 || warp->check_subwarp(&this));
+	}
 
 protected:
 
@@ -996,6 +1013,8 @@ protected:
     std::list<mem_access_t> m_accessq;
 
     static unsigned sm_next_uid;
+
+	std::set<warp_inst_t*>* m_current_subwarps;
 };
 
 void move_warp( warp_inst_t *&dst, warp_inst_t *&src );
