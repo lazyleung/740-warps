@@ -1487,6 +1487,7 @@ public:
 		m_warp_ret = 0;
 		m_while_cnt = 0;
 		m_for_entry = 0;
+		m_for_uncheck = 0;
     }
 
     ~shader_core_stats()
@@ -1524,6 +1525,7 @@ public:
 	unsigned m_warp_div;
 	unsigned m_while_cnt;
 	unsigned m_for_entry;
+	unsigned m_for_uncheck;
 
 private:
     const shader_core_config *m_config;
