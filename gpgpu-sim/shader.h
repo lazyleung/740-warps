@@ -241,12 +241,15 @@ public:
 	bool get_lw_stall() {
 		return m_lw_stall;
 	}
+	bool get_lw_stall(warp_inst_t* inst) {
+		return inst->get_num_subwarps() > 1 ? true : check_subwarp(inst);
+	}
 	void add_subwarp(warp_inst_t* inst) {
 		m_current_subwarps->insert(inst);
 		inst->set_subwarp(m_current_subwarps);
 	}
 	bool check_subwarp(warp_inst_t* inst) {
-		return m_current_subwarps == NULL ? false : m_current_subwarps.find(inst) != m_current_subwarps.end();
+		return m_lw_stall ? m_current_subwarps.find(inst) != m_current_subwarps.end() : false;
 	}
 	active_mask_t get_lw_active_mask() {
 		return m_lw_active_mask;
@@ -1782,7 +1785,7 @@ public:
 
 	// LWM
 	bool get_lw_stall(warp_inst_t* inst) {
-		return inst->get_lw_stall(&m_warp[inst->warp_id()]);
+		return m_warp[inst->warp_id()].get_lw_stall(inst);
 	}
 
 	private:

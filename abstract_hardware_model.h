@@ -974,8 +974,8 @@ public:
 	void set_subwarp(std::set<warp_inst_t*>* subwarps) {
 		m_current_subwarps = subwarps;
 	}
-	void unset_subwarp() {
-		m_current_subwarps->erase(&this);
+	void unset_subwarp(warp_inst_t* this_inst) {
+		m_current_subwarps->erase(this_inst);
 		if (m_current_subwarps->size() == 0) {
 			delete m_current_subwarps;
 			m_current_subwarps = NULL;
@@ -983,8 +983,8 @@ public:
 		else
 			m_current_subwarps = NULL;
 	}
-	bool get_lw_stall(shd_warp_t* warp) {
-		return m_current_subwarps == NULL ? 0 : (m_current_subwarps->size() > 1 || warp->check_subwarp(&this));
+	unsigned get_num_subwarps() {
+		return m_current_subwarps->size();
 	}
 
 protected:

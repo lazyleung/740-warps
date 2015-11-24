@@ -1313,7 +1313,7 @@ void shader_core_ctx::writeback()
 
         m_operand_collector.writeback(*pipe_reg);
         unsigned warp_id = pipe_reg->warp_id();
-		if (!pipe_reg.get_lw_stall(&m_warp[warp_id]))
+		if (!m_warp[warp_id].get_lw_stall(pipe_reg))
 	        m_scoreboard->releaseRegisters( pipe_reg );
         m_warp[warp_id].dec_inst_in_pipeline();
 		pipe_reg.unset_subwarp();
@@ -3505,7 +3505,7 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned 
         }
         if ( ptx_thread_done(tid) ) {
             m_warp[inst.warp_id()].set_completed(t);
-			if (!inst.get_lw_stall(&m_warp[inst.warp_id()]))
+			if (!m_warp[inst.warp_id()].get_lw_stall(inst))
 	            m_warp[inst.warp_id()].ibuffer_flush();
         }
 
