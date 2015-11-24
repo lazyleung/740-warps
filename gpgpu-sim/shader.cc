@@ -818,16 +818,19 @@ void scheduler_unit::cycle()
     bool ready_inst = false;  // of the valid instructions, there was one not waiting for pending register writes
     bool issued_inst = false; // of these we issued one
 
+	bool for_entry = false, while_cnt = false, for_uncheck = false;
     order_warps();
     for ( std::vector< shd_warp_t* >::const_iterator iter = m_next_cycle_prioritized_warps.begin();
           iter != m_next_cycle_prioritized_warps.end();
           iter++ ) {
-		m_stats->m_for_uncheck++;
+		//m_stats->m_for_uncheck++;
+		for_uncheck = true;
         // Don't consider warps that are not yet valid
         if ( (*iter) == NULL || (*iter)->done_exit() ) {
             continue;
         }
-		m_stats->m_for_entry++;
+		for_entry = true;
+		//m_stats->m_for_entry++;
         SCHED_DPRINTF( "Testing (warp_id %u, dynamic_warp_id %u)\n",
                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
         unsigned warp_id = (*iter)->get_warp_id();
@@ -835,7 +838,8 @@ void scheduler_unit::cycle()
         unsigned issued=0;
         unsigned max_issue = m_shader->m_config->gpgpu_max_insn_issue_per_warp;
         while( !warp(warp_id).waiting() && !warp(warp_id).ibuffer_empty() && (checked < max_issue) && (checked <= issued) && (issued < max_issue) ) {
-			m_stats->m_while_cnt++;
+			while_cnt = true;
+			//m_stats->m_while_cnt++;
             const warp_inst_t *pI = warp(warp_id).ibuffer_next_inst();
             bool valid = warp(warp_id).ibuffer_next_valid();
             bool warp_inst_issued = false;
@@ -957,6 +961,13 @@ void scheduler_unit::cycle()
         m_stats->shader_cycle_distro[1]++; // waiting for RAW hazards (possibly due to memory) 
     else if( !issued_inst ) 
         m_stats->shader_cycle_distro[2]++; // pipeline stalled
+
+	if (for_entry)
+		m_stats->m_for_entry++;
+	if (for_uncheck)
+		m_stats->m_for_uncheck++;
+	if (while_cnt)
+		m_stats->m_while_cnt++;
 }
 
 void scheduler_unit::do_on_warp_issued( unsigned warp_id,
