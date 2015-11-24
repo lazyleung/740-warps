@@ -452,7 +452,7 @@ void shader_core_stats::print( FILE* fout ) const
    for (unsigned i = 3; i < m_config->warp_size + 3; i++) 
       fprintf(fout, "\tW%d:%d", i-2, shader_cycle_distro[i]);
    fprintf(fout, "\n");
-	fprintf(fout, "Warp Div: %u\tWarp Ret: %u\n", m_warp_div, m_warp_ret);
+	fprintf(fout, "Warp Div: %u\tWarp Ret: %u\tWhile Count: %u\n", m_warp_div, m_warp_ret, m_while_cnt);
 
    m_outgoing_traffic_stats->print(fout); 
    m_incoming_traffic_stats->print(fout); 
@@ -833,6 +833,7 @@ void scheduler_unit::cycle()
         unsigned issued=0;
         unsigned max_issue = m_shader->m_config->gpgpu_max_insn_issue_per_warp;
         while( !warp(warp_id).waiting() && !warp(warp_id).ibuffer_empty() && (checked < max_issue) && (checked <= issued) && (issued < max_issue) ) {
+			m_stats->m_while_cnt++;
             const warp_inst_t *pI = warp(warp_id).ibuffer_next_inst();
             bool valid = warp(warp_id).ibuffer_next_valid();
             bool warp_inst_issued = false;
