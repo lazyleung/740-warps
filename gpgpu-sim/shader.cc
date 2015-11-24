@@ -693,7 +693,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
     m_stats->shader_cycle_distro[2+(*pipe_reg)->active_count()]++;
     func_exec_inst( **pipe_reg );
-	m_stats->count_mem_divergenc((*pipe_reg)->accessq_count());
+	m_stats->count_mem_divergence((*pipe_reg)->accessq_count());
     if( next_inst->op == BARRIER_OP ){
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
         m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
