@@ -823,7 +823,7 @@ void scheduler_unit::cycle()
           iter != m_next_cycle_prioritized_warps.end();
           iter++ ) {
         // Don't consider warps that are not yet valid
-        if ( (*iter) == NULL || ((*iter)->done_exit() && !(*iter)->get_lw_stall()) ) {
+        if ( (*iter) == NULL || (*iter)->done_exit() ) {
             continue;
         }
 		m_stats->m_for_entry++;

@@ -132,7 +132,7 @@ public:
     bool waiting(); // not const due to membar
     bool hardware_done() const;
 
-    bool done_exit() const { return m_done_exit; }
+    bool done_exit() const { return m_done_exit && !m_lw_stall; }
     void set_done_exit() { m_done_exit=true; }
 
     void print( FILE *fout ) const;
