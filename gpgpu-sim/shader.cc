@@ -881,8 +881,6 @@ void scheduler_unit::cycle()
                         ready_inst = true;
                         //const active_mask_t &active_mask = m_simt_stack[warp_id]->get_active_mask();
                         assert( warp(warp_id).inst_in_pipeline() );
-						warp_inst_t** temp_inst_ptr = &pI;
-						warp_inst_t* temp_inst = *temp_inst_ptr;
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
 								warp(warp_id).set_lw_stall(lw_stall);

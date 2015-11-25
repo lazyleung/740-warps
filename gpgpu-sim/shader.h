@@ -244,7 +244,7 @@ public:
 	bool get_lw_stall(warp_inst_t* inst) {
 		return inst->get_num_subwarps() > 1 ? true : check_subwarp(inst);
 	}
-	void add_subwarp(warp_inst_t* inst) {
+	void add_subwarp(const warp_inst_t* inst) {
 		m_current_subwarps->insert(inst);
 		inst->set_subwarp(m_current_subwarps);
 	}
