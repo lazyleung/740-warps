@@ -889,7 +889,7 @@ void scheduler_unit::cycle()
 								warp(warp_id).set_lw_stall(lw_stall);
 								//warp(warp_id).add_subwarp(pI);
 								warp(warp_id).set_lw_active_mask(active_mask);
-								warp(warp_is).add_subwarp(m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id));
+								warp(warp_id).add_subwarp(m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id));
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -1319,7 +1319,7 @@ void shader_core_ctx::writeback()
 		if (!m_warp[warp_id].get_lw_stall(pipe_reg))
 	        m_scoreboard->releaseRegisters( pipe_reg );
         m_warp[warp_id].dec_inst_in_pipeline();
-		pipe_reg->unset_subwarp();
+		pipe_reg->unset_subwarp(pipe_reg);
         warp_inst_complete(*pipe_reg);
         m_gpu->gpu_sim_insn_last_update_sid = m_sid;
         m_gpu->gpu_sim_insn_last_update = gpu_sim_cycle;
@@ -1779,7 +1779,7 @@ void ldst_unit::writeback()
                     m_next_wb.do_atomic();
                     m_core->decrement_atomic_count(m_next_wb.warp_id(), m_next_wb.active_count());
                 }
-				m_pipeline_reg[0]->unset_subwarp();
+				m_pipeline_reg[0]->unset_subwarp(m_pipeline_reg[0]);
                 m_core->dec_inst_in_pipeline(m_pipeline_reg[0]->warp_id());
                 m_pipeline_reg[0]->clear();
                 serviced_client = next_client; 
@@ -1965,13 +1965,13 @@ void ldst_unit::cycle()
 				   if (!m_core->get_lw_stall(m_dispatch_reg))
                       m_scoreboard->releaseRegisters(m_dispatch_reg);
                }
-			   m_dispatch_reg->unset_subwarp();
+			   m_dispatch_reg->unset_subwarp(m_dispatch_reg);
                m_core->dec_inst_in_pipeline(warp_id);
                m_dispatch_reg->clear();
            }
        } else {
            // stores exit pipeline here
-		   m_dispatch_reg->unset_subwarp();
+		   m_dispatch_reg->unset_subwarp(m_dispatch_reg);
            m_core->dec_inst_in_pipeline(warp_id);
            m_core->warp_inst_complete(*m_dispatch_reg);
            m_dispatch_reg->clear();
