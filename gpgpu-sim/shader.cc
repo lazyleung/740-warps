@@ -683,7 +683,7 @@ void shader_core_ctx::func_exec_inst( warp_inst_t &inst )
         inst.generate_mem_accesses();
 }
 
-void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t* next_inst, const active_mask_t &active_mask, unsigned warp_id )
+warp_inst_t* shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t* next_inst, const active_mask_t &active_mask, unsigned warp_id )
 {
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
@@ -710,6 +710,8 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 		m_scoreboard->reserveRegisters(*pipe_reg);
     	m_warp[warp_id].set_next_pc(next_inst->pc + next_inst->isize);
 	}
+
+	return *pipe_reg;
 }
 
 void shader_core_ctx::issue(){
@@ -881,12 +883,13 @@ void scheduler_unit::cycle()
                         ready_inst = true;
                         //const active_mask_t &active_mask = m_simt_stack[warp_id]->get_active_mask();
                         assert( warp(warp_id).inst_in_pipeline() );
+						warp_inst_t temp_inst = *pI;
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
 								warp(warp_id).set_lw_stall(lw_stall);
-								warp(warp_id).add_subwarp(pI);
+								//warp(warp_id).add_subwarp(pI);
 								warp(warp_id).set_lw_active_mask(active_mask);
-								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
+								warp(warp_is).add_subwarp(m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id));
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -898,9 +901,9 @@ void scheduler_unit::cycle()
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
 								warp(warp_id).set_lw_stall(lw_stall);
-								warp(warp_id).add_subwarp(pI);
+								//warp(warp_id).add_subwarp(pI);
 								warp(warp_id).set_lw_active_mask(active_mask);
-								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id);
+								warp(warp_id).add_subwarp(m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id));
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -908,9 +911,9 @@ void scheduler_unit::cycle()
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
 									warp(warp_id).set_lw_stall(lw_stall);
-									warp(warp_id).add_subwarp(pI);
+									//warp(warp_id).add_subwarp(pI);
 									warp(warp_id).set_lw_active_mask(active_mask);
-									m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, warp_id);
+									warp(warp_id).add_subwarp(m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, warp_id));
                                     //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
                                     issued++;
                                     issued_inst=true;
