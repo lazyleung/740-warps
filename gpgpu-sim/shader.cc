@@ -1316,7 +1316,7 @@ void shader_core_ctx::writeback()
 		if (!m_warp[warp_id].get_lw_stall(pipe_reg))
 	        m_scoreboard->releaseRegisters( pipe_reg );
         m_warp[warp_id].dec_inst_in_pipeline();
-		pipe_reg.unset_subwarp();
+		pipe_reg->unset_subwarp();
         warp_inst_complete(*pipe_reg);
         m_gpu->gpu_sim_insn_last_update_sid = m_sid;
         m_gpu->gpu_sim_insn_last_update = gpu_sim_cycle;
@@ -3505,7 +3505,7 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned 
         }
         if ( ptx_thread_done(tid) ) {
             m_warp[inst.warp_id()].set_completed(t);
-			if (!m_warp[inst.warp_id()].get_lw_stall(inst))
+			if (!m_warp[inst.warp_id()].get_lw_stall(&inst))
 	            m_warp[inst.warp_id()].ibuffer_flush();
         }
 
