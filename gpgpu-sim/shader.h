@@ -232,7 +232,7 @@ public:
     unsigned get_warp_id() const { return m_warp_id; }
 
 	void set_lw_stall(bool stall) {
-		if (!m_lw_stall && stall)
+		if (m_current_subwarps == NULL)
 			m_current_subwarps = new std::set<warp_inst_t*>();
 		m_lw_stall = stall;
 	}
