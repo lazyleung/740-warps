@@ -249,7 +249,7 @@ public:
 		inst->set_subwarp(m_current_subwarps);
 	}
 	bool check_subwarp(warp_inst_t* inst) {
-		return m_lw_stall ? m_current_subwarps.find(inst) != m_current_subwarps.end() : false;
+		return m_lw_stall ? m_current_subwarps->find(inst) != m_current_subwarps->end() : false;
 	}
 	active_mask_t get_lw_active_mask() {
 		return m_lw_active_mask;
