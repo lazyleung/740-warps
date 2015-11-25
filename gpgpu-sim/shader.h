@@ -234,8 +234,6 @@ public:
 	void set_lw_stall(bool stall) {
 		if (!m_lw_stall && stall)
 			m_current_subwarps = new std::set<warp_inst_t*>();
-		else if (m_lw_stall && !stall) 
-			m_current_subwarps = NULL;
 		m_lw_stall = stall;
 	}
 	bool get_lw_stall() {
@@ -247,6 +245,8 @@ public:
 	void add_subwarp(warp_inst_t* inst) {
 		m_current_subwarps->insert(inst);
 		inst->set_subwarp(m_current_subwarps);
+		if (!m_lw_stall)
+			m_current_subwarps = NULL;
 	}
 	bool check_subwarp(warp_inst_t* inst) {
 		return m_lw_stall ? m_current_subwarps->find(inst) != m_current_subwarps->end() : false;
