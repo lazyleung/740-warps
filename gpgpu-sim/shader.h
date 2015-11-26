@@ -241,6 +241,12 @@ public:
 	void set_lw_active_mask(active_mask_t mask) {
 		m_lw_active_mask = mask;
 	}
+	void set_lw_inst(const warp_inst_t* inst) {
+		m_lw_inst = *inst;
+	}
+	const warp_inst_t* get_lw_inst() {
+		return &m_lw_inst;
+	}
 private:
     static const unsigned IBUFFER_SIZE=2;
     class shader_core_ctx *m_shader;
@@ -256,6 +262,7 @@ private:
 	// LWM
 	bool m_lw_stall;
 	active_mask_t m_lw_active_mask;
+	warp_inst_t m_lw_inst;
 
     bool m_imiss_pending;
     

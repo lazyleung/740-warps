@@ -688,9 +688,12 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
 
-	if (!m_warp[warp_id].get_lw_stall())    
+	if (m_warp[warp_id].get_lw_stall())
+		m_warp[warp_id].set_lw_inst(next_inst);
+	//if (!m_warp[warp_id].get_lw_stall())    
 	    m_warp[warp_id].ibuffer_free();
-	else 
+	//else 
+	if (m_warp[warp_id].get_lw_stall())
 		m_warp[warp_id].inc_inst_in_pipeline();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
@@ -835,8 +838,8 @@ void scheduler_unit::cycle()
         unsigned max_issue = m_shader->m_config->gpgpu_max_insn_issue_per_warp;
         while( !warp(warp_id).waiting() && !warp(warp_id).ibuffer_empty() && (checked < max_issue) && (checked <= issued) && (issued < max_issue) ) {
 			m_stats->m_while_cnt++;
-            const warp_inst_t *pI = warp(warp_id).ibuffer_next_inst();
-            bool valid = warp(warp_id).ibuffer_next_valid();
+            const warp_inst_t *pI = warp(warp_id).get_lw_stall() ? warp(warp_id).get_lw_inst() : warp(warp_id).ibuffer_next_inst();
+            bool valid = warp(warp_id).ibuffer_next_valid() || warp(warp_id).get_lw_stall();
             bool warp_inst_issued = false;
             unsigned pc,rpc;
             m_simt_stack[warp_id]->get_pdom_stack_top_info(&pc,&rpc);
