@@ -691,7 +691,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 	if (m_warp[warp_id].get_lw_stall())
 		m_warp[warp_id].set_lw_inst(next_inst);
 	//if (!m_warp[warp_id].get_lw_stall())    
-	    m_warp[warp_id].ibuffer_free();
+	    //m_warp[warp_id].ibuffer_free();
 	//else 
 	if (m_warp[warp_id].get_lw_stall())
 		m_warp[warp_id].inc_inst_in_pipeline();
@@ -702,7 +702,8 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     func_exec_inst( **pipe_reg );
     if( next_inst->op == BARRIER_OP ){
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
-        m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
+		if (!m_warp[warp_id].get_lw_stall())
+        	m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
 
     }else if( next_inst->op == MEMORY_BARRIER_OP ){
         m_warp[warp_id].set_membar();
@@ -872,6 +873,7 @@ void scheduler_unit::cycle()
 						}
 					}
 					bool lw_stall = active_mask.count() > 0;
+					bool prev_stall = warp(warp_id).get_lw_stall();
 
                     if ( !m_scoreboard->checkCollision(warp_id, pI) || warp(warp_id).get_lw_stall() ) {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
@@ -884,6 +886,10 @@ void scheduler_unit::cycle()
 								warp(warp_id).set_lw_stall(lw_stall);
 								warp(warp_id).set_lw_active_mask(active_mask);
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
+								if (!prev_stall) {
+									warp(warp_id).ibuffer_free();
+									warp(warp_id).ibuffer_step();
+								}
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -897,6 +903,10 @@ void scheduler_unit::cycle()
 								warp(warp_id).set_lw_stall(lw_stall);
 								warp(warp_id).set_lw_active_mask(active_mask);
 								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id);
+								if (!prev_stall) {
+									warp(warp_id).ibuffer_free();
+									warp(warp_id).ibuffer_step();
+								}
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -906,6 +916,10 @@ void scheduler_unit::cycle()
 									warp(warp_id).set_lw_stall(lw_stall);
 									warp(warp_id).set_lw_active_mask(active_mask);
 									m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, warp_id);
+									if (!prev_stall) {
+										warp(warp_id).ibuffer_free();
+										warp(warp_id).ibuffer_step();
+									}								
                                     //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
                                     issued++;
                                     issued_inst=true;
@@ -2821,8 +2835,9 @@ void shader_core_ctx::broadcast_barrier_reduction(unsigned cta_id,unsigned bar_i
 {
 	for(unsigned i=0; i<m_config->max_warps_per_shader;i++){
 		if(warps.test(i)){
-			const warp_inst_t * inst = m_warp[i].restore_info_of_last_inst_at_barrier();
-			const_cast<warp_inst_t *> (inst)->broadcast_barrier_reduction(inst->get_active_mask());
+			const warp_inst_t* inst;
+			while ((inst = m_warp[i].restore_info_of_last_inst_at_barrier()) != NULL)
+				const_cast<warp_inst_t*>(inst)->broadcast_barrier_reduction(inst->get_active_mask());
 		}
 	}
 }

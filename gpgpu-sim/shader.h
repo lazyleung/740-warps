@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <map>
 #include <set>
+#include <queue>
 #include <vector>
 #include <list>
 #include <bitset>
@@ -158,8 +159,16 @@ public:
     address_type get_pc() const { return m_next_pc; }
     void set_next_pc( address_type pc ) { m_next_pc = pc; }
 
-    void store_info_of_last_inst_at_barrier(const warp_inst_t *pI){ m_inst_at_barrier = pI;}
-    const warp_inst_t * restore_info_of_last_inst_at_barrier(){ return m_inst_at_barrier;}
+    /*void store_info_of_last_inst_at_barrier(const warp_inst_t *pI){ m_inst_at_barrier = pI;}
+    const warp_inst_t * restore_info_of_last_inst_at_barrier(){ return m_inst_at_barrier;}*/
+	void store_info_of_last_inst_at_barrier(const warp_inst_t* pI) {
+		m_inst_at_barrier.push(pI);
+	}
+	const warp_inst_t* restore_info_of_last_inst_at_barrier() {
+		if (!m_inst_at_barrier.empty())
+			return m_inst_at_barrier.pop();
+		return NULL;
+	}
 
     void ibuffer_fill( unsigned slot, const warp_inst_t *pI )
     {
@@ -272,7 +281,8 @@ private:
        bool m_valid;
     };
 
-    const warp_inst_t *m_inst_at_barrier;
+	std::queue<const warp_inst_t*> m_inst_at_barrier;
+    //const warp_inst_t *m_inst_at_barrier;
     ibuffer_entry m_ibuffer[IBUFFER_SIZE]; 
     unsigned m_next;
                                    
