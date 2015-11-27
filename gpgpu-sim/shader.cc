@@ -683,18 +683,22 @@ void shader_core_ctx::func_exec_inst( warp_inst_t &inst )
         inst.generate_mem_accesses();
 }
 
-void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t* next_inst, const active_mask_t &active_mask, unsigned warp_id )
+void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t* next_inst, const active_mask_t &active_mask, const active_mask_t &next_mask, unsigned warp_id, bool lw_stall )
 {
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
 
-	if (m_warp[warp_id].get_lw_stall())
+	if (!m_warp[warp_id].get_lw_stall()) {
+		m_warp[warp_id].ibuffer_free();
+		m_warp[warp_id].ibuffer_step();
+	}
+	m_warp[warp_id].set_lw_stall(lw_stall);
+	m_warp[warp_id].set_lw_active_mask(next_mask);
+	if (m_warp[warp_id].get_lw_stall()) {
 		m_warp[warp_id].set_lw_inst(next_inst);
-	//if (!m_warp[warp_id].get_lw_stall())    
-	    m_warp[warp_id].ibuffer_free();
-	//else 
-	if (m_warp[warp_id].get_lw_stall())
 		m_warp[warp_id].inc_inst_in_pipeline();
+	}
+
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
@@ -703,7 +707,6 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     if( next_inst->op == BARRIER_OP ){
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
         m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
-
     }else if( next_inst->op == MEMORY_BARRIER_OP ){
         m_warp[warp_id].set_membar();
     }
@@ -881,9 +884,7 @@ void scheduler_unit::cycle()
                         assert( warp(warp_id).inst_in_pipeline() );
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
-								warp(warp_id).set_lw_stall(lw_stall);
-								warp(warp_id).set_lw_active_mask(active_mask);
-								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
+								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, active_mask, warp_id, lw_stall);
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -894,18 +895,14 @@ void scheduler_unit::cycle()
                             bool sfu_pipe_avail = m_sfu_out->has_free();
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
-								warp(warp_id).set_lw_stall(lw_stall);
-								warp(warp_id).set_lw_active_mask(active_mask);
-								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id);
+								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, active_mask, warp_id, lw_stall);
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
-									warp(warp_id).set_lw_stall(lw_stall);
-									warp(warp_id).set_lw_active_mask(active_mask);
-									m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, warp_id);
+									m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, active_mask, warp_id, lw_stall);
                                     //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
                                     issued++;
                                     issued_inst=true;
@@ -969,7 +966,7 @@ void scheduler_unit::do_on_warp_issued( unsigned warp_id,
                                 warp_id,
                                 num_issued,
                                 warp(warp_id).get_dynamic_warp_id() );
-    warp(warp_id).ibuffer_step();
+    //warp(warp_id).ibuffer_step();
 }
 
 bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t* lhs, shd_warp_t* rhs)
