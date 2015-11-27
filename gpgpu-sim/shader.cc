@@ -872,7 +872,7 @@ void scheduler_unit::cycle()
 						}
 					}
 					bool lw_stall = active_mask.count() > 0;
-
+					bool prev_stall = warp(warp_id).get_lw_stall();
                     if ( !m_scoreboard->checkCollision(warp_id, pI) || warp(warp_id).get_lw_stall() ) {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
@@ -884,6 +884,10 @@ void scheduler_unit::cycle()
 								warp(warp_id).set_lw_stall(lw_stall);
 								warp(warp_id).set_lw_active_mask(active_mask);
 								m_shader->issue_warp(*m_mem_out, pI, subwarp_mask, warp_id);
+								if (!prev_stall) {
+									warp(warp_id).ibuffer_free();
+									warp(warp_id).ibuffer_step();
+								}
                                 //m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -897,6 +901,10 @@ void scheduler_unit::cycle()
 								warp(warp_id).set_lw_stall(lw_stall);
 								warp(warp_id).set_lw_active_mask(active_mask);
 								m_shader->issue_warp(*m_sp_out, pI, subwarp_mask, warp_id);
+								if (!prev_stall) {
+									warp(warp_id).ibuffer_free();
+									warp(warp_id).ibuffer_step();
+								}
                                 //m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
                                 issued++;
                                 issued_inst=true;
@@ -906,7 +914,11 @@ void scheduler_unit::cycle()
 									warp(warp_id).set_lw_stall(lw_stall);
 									warp(warp_id).set_lw_active_mask(active_mask);
 									m_shader->issue_warp(*m_sfu_out, pI, subwarp_mask, warp_id);
-                                    //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
+ 									if (!prev_stall) {
+										warp(warp_id).ibuffer_free();
+										warp(warp_id).ibuffer_step();
+									}  
+	                                //m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
                                     issued++;
                                     issued_inst=true;
                                     warp_inst_issued = true;
@@ -969,7 +981,7 @@ void scheduler_unit::do_on_warp_issued( unsigned warp_id,
                                 warp_id,
                                 num_issued,
                                 warp(warp_id).get_dynamic_warp_id() );
-    warp(warp_id).ibuffer_step();
+    //warp(warp_id).ibuffer_step();
 }
 
 bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t* lhs, shd_warp_t* rhs)
