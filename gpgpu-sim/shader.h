@@ -41,6 +41,7 @@
 #include <utility>
 #include <algorithm>
 #include <deque>
+#include <queue>
 
 //#include "../cuda-sim/ptx.tab.h"
 
