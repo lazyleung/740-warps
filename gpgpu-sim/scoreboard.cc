@@ -55,7 +55,7 @@ void Scoreboard::printContents() const
 		for (unsigned j = 0; j < reg_table[i].size(); j++) {
 			if (reg_table[i][j].size() == 0)
 				continue;
-			printf(" tid = %d: ", );
+			printf(" tid = %d: ", j);
 			std::set<unsigned>::const_iterator it;
 			for( it=reg_table[i][j].begin() ; it != reg_table[i][j].end(); it++ )
 				printf("%u ", *it);
