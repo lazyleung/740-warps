@@ -713,8 +713,9 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     }
 
     updateSIMTStack(warp_id,*pipe_reg);
+	m_scoreboard->reserveRegisters(*pipe_reg);
 	if (!m_warp[warp_id].get_lw_stall()) {
-		m_scoreboard->reserveRegisters(*pipe_reg);
+		//m_scoreboard->reserveRegisters(*pipe_reg);
     	m_warp[warp_id].set_next_pc(next_inst->pc + next_inst->isize);
 	}
 }
@@ -877,7 +878,7 @@ void scheduler_unit::cycle()
 					}
 					bool lw_stall = active_mask.count() > 0;
 
-                    if ( !m_scoreboard->checkCollision(warp_id, pI) || warp(warp_id).get_lw_stall() ) {
+                    if ( !m_scoreboard->checkCollision(warp_id, subwarp_mask, pI) /*|| warp(warp_id).get_lw_stall()*/ ) {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
                         ready_inst = true;
@@ -1034,7 +1035,7 @@ void two_level_active_scheduler::order_warps()
         for (int i=0; i<4; i++){
             const warp_inst_t* inst = (*iter)->ibuffer_next_inst();
             //Is the instruction waiting on a long operation?
-            if ( inst && inst->in[i] > 0 && this->m_scoreboard->islongop((*iter)->get_warp_id(), inst->in[i])){
+            if ( inst && inst->in[i] > 0 && this->m_scoreboard->islongop((*iter)->get_warp_id(), inst->in[i], inst->get_active_mask())){
                 waiting = true;
             }
         }
@@ -1299,7 +1300,7 @@ void shader_core_ctx::writeback()
 
         m_operand_collector.writeback(*pipe_reg);
         unsigned warp_id = pipe_reg->warp_id();
-		if (!m_warp[warp_id].get_lw_stall()) 
+		//if (!m_warp[warp_id].get_lw_stall()) 
 	        m_scoreboard->releaseRegisters( pipe_reg );
         m_warp[warp_id].dec_inst_in_pipeline();
 	    warp_inst_complete(*pipe_reg);
@@ -1730,13 +1731,13 @@ void ldst_unit::writeback()
                         unsigned still_pending = --m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]];
                         if( !still_pending ) {
                             m_pending_writes[m_next_wb.warp_id()].erase(m_next_wb.out[r]);
-							if (!m_core->get_lw_stall(m_next_wb.warp_id()))
-                            	m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.out[r] );
+							//if (!m_core->get_lw_stall(m_next_wb.warp_id()))
+                            	m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.out[r], m_next_wb.get_active_mask() );
                             insn_completed = true; 
                         }
                     } else { // shared 
-						if (!m_core->get_lw_stall(m_next_wb.warp_id()))
-                        	m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.out[r] );
+						//if (!m_core->get_lw_stall(m_next_wb.warp_id()))
+                        	m_scoreboard->releaseRegister( m_next_wb.warp_id(), m_next_wb.out[r], m_next_wb.get_active_mask() );
                         insn_completed = true; 
                     }
                 }
@@ -1943,7 +1944,7 @@ void ldst_unit::cycle()
                }
                if( !pending_requests ) {
                    m_core->warp_inst_complete(*m_dispatch_reg);
-				   if (!m_core->get_lw_stall(warp_id))
+				   //if (!m_core->get_lw_stall(warp_id))
                       m_scoreboard->releaseRegisters(m_dispatch_reg);
                }
                m_core->dec_inst_in_pipeline(warp_id);

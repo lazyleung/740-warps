@@ -42,23 +42,23 @@ public:
 
     void reserveRegisters(const warp_inst_t *inst);
     void releaseRegisters(const warp_inst_t *inst);
-    void releaseRegister(unsigned wid, unsigned regnum);
+    void releaseRegister(unsigned wid, unsigned regnum, active_mask_t mask);
 
-    bool checkCollision(unsigned wid, const inst_t *inst) const;
+    bool checkCollision(unsigned wid, active_mask_t mask, const inst_t *inst) const;
     bool pendingWrites(unsigned wid) const;
     void printContents() const;
-    const bool islongop(unsigned warp_id, unsigned regnum);
+    const bool islongop(unsigned warp_id, unsigned regnum, active_mask_t mask);
 private:
-    void reserveRegister(unsigned wid, unsigned regnum);
+    void reserveRegister(unsigned wid, unsigned regnum, active_mask_t mask);
     int get_sid() const { return m_sid; }
 
     unsigned m_sid;
 
     // keeps track of pending writes to registers
     // indexed by warp id, reg_id => pending write count
-    std::vector< std::set<unsigned> > reg_table;
+    std::vector< std::vector< std::set<unsigned> > > reg_table;
     //Register that depend on a long operation (global, local or tex memory)
-    std::vector< std::set<unsigned> > longopregs;
+    std::vector< std::vector< std::set<unsigned> > > longopregs;
 };
 
 
