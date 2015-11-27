@@ -147,7 +147,7 @@ void Scoreboard::releaseRegisters(const class warp_inst_t *inst)
                             inst->out[r] );
             releaseRegister(inst->warp_id(), inst->out[r], inst->get_active_mask());
 			for (unsigned i = 0; i < inst->get_active_mask().size(); i++) {
-				if (inst->get_active_mask().test(i) && (longopregs[inst->warp_id()][i].find(inst->out[r]) != longopregs[inst->warp_id()][i].end())) 
+				if (inst->get_active_mask().test(i))
             		longopregs[inst->warp_id()][i].erase(inst->out[r]);
 			}
         }
