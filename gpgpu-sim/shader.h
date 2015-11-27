@@ -108,7 +108,9 @@ public:
         m_done_exit=true;
         m_last_fetch=0;
         m_next=0;
-        m_inst_at_barrier=NULL;
+        //m_inst_at_barrier=NULL;
+		std::queue<const warp_inst_t*> temp;
+		m_inst_at_barrier.swap(temp);
 		m_lw_stall = false;
     }
     void init( address_type start_pc,
@@ -165,8 +167,11 @@ public:
 		m_inst_at_barrier.push(pI);
 	}
 	const warp_inst_t* restore_info_of_last_inst_at_barrier() {
-		if (!m_inst_at_barrier.empty())
-			return m_inst_at_barrier.pop();
+		if (!m_inst_at_barrier.empty()) {
+			const warp_inst_t* inst = m_inst_at_barrier.front();
+			m_inst_at_barrier.pop();
+			return inst;
+		}
 		return NULL;
 	}
 
