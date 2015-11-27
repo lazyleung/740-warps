@@ -875,7 +875,7 @@ void scheduler_unit::cycle()
 						}
 					}
 					bool lw_stall = active_mask.count() > 0;
-					bool prev_stall = warp(warp_id).get_lw_stall();
+
                     if ( !m_scoreboard->checkCollision(warp_id, pI) || warp(warp_id).get_lw_stall() ) {
                         SCHED_DPRINTF( "Warp (warp_id %u, dynamic_warp_id %u) passes scoreboard\n",
                                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
