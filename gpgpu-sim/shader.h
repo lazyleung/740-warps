@@ -107,7 +107,9 @@ public:
         m_done_exit=true;
         m_last_fetch=0;
         m_next=0;
-        m_inst_at_barrier=NULL;
+        //m_inst_at_barrier=NULL;
+		std::queue<const warp_inst_t*> temp;
+		m_inst_at_barrier.swap(temp);
 		m_lw_stall = false;
     }
     void init( address_type start_pc,
@@ -158,8 +160,18 @@ public:
     address_type get_pc() const { return m_next_pc; }
     void set_next_pc( address_type pc ) { m_next_pc = pc; }
 
-    void store_info_of_last_inst_at_barrier(const warp_inst_t *pI){ m_inst_at_barrier = pI;}
-    const warp_inst_t * restore_info_of_last_inst_at_barrier(){ return m_inst_at_barrier;}
+    //void store_info_of_last_inst_at_barrier(const warp_inst_t *pI){ m_inst_at_barrier = pI;}
+    //const warp_inst_t * restore_info_of_last_inst_at_barrier(){ return m_inst_at_barrier;}
+	void store_info_of_last_inst_at_barrier(const warp_inst_t* pI) {
+		m_inst_at_barrier.push(pI);
+	}
+	const warp_inst_t* restore_info_of_last_inst_at_barrier() {
+		if (m_inst_at_barrier.empty())
+			return NULL;
+		const warp_inst_t* inst = m_inst_at_barrier.front();
+		m_inst_at_barrier.pop();
+		return inst;
+	}
 
     void ibuffer_fill( unsigned slot, const warp_inst_t *pI )
     {
@@ -272,7 +284,8 @@ private:
        bool m_valid;
     };
 
-    const warp_inst_t *m_inst_at_barrier;
+	std::queue<const warp_inst_t*> m_inst_at_barrier;
+    //const warp_inst_t *m_inst_at_barrier;
     ibuffer_entry m_ibuffer[IBUFFER_SIZE]; 
     unsigned m_next;
                                    

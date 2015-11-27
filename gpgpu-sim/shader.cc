@@ -706,7 +706,8 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     func_exec_inst( **pipe_reg );
     if( next_inst->op == BARRIER_OP ){
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
-        m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
+		if (!m_warp[warp_id].get_lw_stall())
+        	m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
     }else if( next_inst->op == MEMORY_BARRIER_OP ){
         m_warp[warp_id].set_membar();
     }
@@ -2818,8 +2819,9 @@ void shader_core_ctx::broadcast_barrier_reduction(unsigned cta_id,unsigned bar_i
 {
 	for(unsigned i=0; i<m_config->max_warps_per_shader;i++){
 		if(warps.test(i)){
-			const warp_inst_t * inst = m_warp[i].restore_info_of_last_inst_at_barrier();
-			const_cast<warp_inst_t *> (inst)->broadcast_barrier_reduction(inst->get_active_mask());
+			const warp_inst_t* inst;
+			while ((inst = m_warp[i].restore_info_of_last_inst_at_barrier()) != NULL)
+				const_cast<warp_inst_t *> (inst)->broadcast_barrier_reduction(inst->get_active_mask());
 		}
 	}
 }
