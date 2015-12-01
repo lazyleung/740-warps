@@ -894,8 +894,6 @@ void gpgpu_sim::gpu_print_stat()
    printf("gpu_tot_ipc = %12.4f\n", (float)(gpu_tot_sim_insn+gpu_sim_insn) / (gpu_tot_sim_cycle+gpu_sim_cycle));
    printf("gpu_tot_issued_cta = %lld\n", gpu_tot_issued_cta);
 
-
-
    // performance counter for stalls due to congestion.
    printf("gpu_stall_dramfull = %d\n", gpu_stall_dramfull);
    printf("gpu_stall_icnt2sh    = %d\n", gpu_stall_icnt2sh );
@@ -1150,6 +1148,7 @@ void gpgpu_sim::issue_block2core()
             m_total_cta_launched += num;
         }
     }
+    gpu_tot_issued_cta = m_total_cta_launched;
 }
 
 unsigned long long g_single_step=0; // set this in gdb to single step the pipeline
