@@ -261,21 +261,21 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
     return status;
 }
 
-void tag_array::fill( new_addr_type addr, unsigned time )
+void tag_array::fill( new_addr_type sig, new_addr_type addr, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_FILL );
     unsigned idx;
     enum cache_request_status status = probe(addr,idx);
     assert(status==MISS); // MSHR should have prevented redundant memory request
     m_lines[idx].allocate( m_config.tag(addr), m_config.block_addr(addr), time );
-    m_lines[idx].fill(time);
+    m_lines[idx].fill(sig, time);
 }
 
-void tag_array::fill( unsigned index, unsigned time ) 
+void tag_array::fill( new_addr_type sig, unsigned index, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_MISS );
-    m_lines[index].fill(time);
-}
+    m_lines[index].fill(sig, time);
+
 
 void tag_array::flush() 
 {
@@ -320,6 +320,159 @@ void tag_array::get_stats(unsigned &total_access, unsigned &total_misses, unsign
     total_res_fail  = m_res_fail;
 }
 
+cacp_tag_array::cacp_tag_array( cache_config &config,
+                      int core_id,
+                      int type_id )
+    : m_config( config )
+{
+    m_critical_lines = new cache_block_t[CRITICAL_LINES];
+    m_lines = new cache_block_t[MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines() - CRITICAL_LINES];
+    init( core_id, type_id );
+}
+
+enum cache_request_status cacp_tag_array::probe( isCriticalWarp, new_addr_type addr, unsigned &idx ) const {
+    //assert( m_config.m_write_policy == READ_ONLY );
+    unsigned set_index = m_config.set_index(addr);
+    new_addr_type tag = m_config.tag(addr);
+
+    unsigned invalid_line = (unsigned)-1;
+    unsigned valid_line = (unsigned)-1;
+    unsigned valid_timestamp = (unsigned)-1;
+
+    bool all_reserved = true;
+
+    enum cache_request_status result = NULL;
+
+    // check for hit or pending hit
+    for (unsigned way=0; way<m_config.m_assoc; way++) {
+        unsigned index = set_index*m_config.m_assoc+way;
+
+        cache_block_t *line;
+        if(index >= CRITICAL_LINES) {
+            line = &m_lines[index];
+        } else {
+            line = &m_critical_lines[index];
+        }
+
+        if (line->m_tag == tag) {
+            if ( line->m_status == RESERVED ) {
+                idx = index;
+                return HIT_RESERVED;
+            } else if ( line->m_status == VALID ) {
+                idx = index;
+                if(isCriticalWarp){
+                    line->c_reuse = true;
+                    //CCBP[line.signature]++;
+                    //SHiP[line.signature]++;
+                } else {
+                    line->nc_reuse = true;
+                    //SHiP[line.signature]++;
+                }
+                return HIT;
+            } else if ( line->m_status == MODIFIED ) {
+                idx = index;
+                if(isCriticalWarp){
+                    line->c_reuse = true;
+                    //CCBP[line.signature]++;
+                    //SHiP[line.signature]++;
+                } else {
+                    line->nc_reuse = true;
+                    //SHiP[line.signature]++;
+                }
+                return HIT;
+            } else {
+                assert( line->m_status == INVALID );
+            }
+        }
+        if (line->m_status != RESERVED) {
+            all_reserved = false;
+            if (line->m_status == INVALID) {
+                invalid_line = index;
+            } else {
+                // valid line : keep track of most appropriate replacement candidate
+                if ( m_config.m_replacement_policy == LRU ) {
+                    if ( line->m_last_access_time < valid_timestamp ) {
+                        valid_timestamp = line->m_last_access_time;
+                        valid_line = index;
+                    }
+                } else if ( m_config.m_replacement_policy == FIFO ) {
+                    if ( line->m_alloc_time < valid_timestamp ) {
+                        valid_timestamp = line->m_alloc_time;
+                        valid_line = index;
+                    }
+                }
+            }
+        }
+    }
+    if ( all_reserved ) {
+        assert( m_config.m_alloc_policy == ON_MISS ); 
+        return RESERVATION_FAIL; // miss and not enough space in cache to allocate on miss
+    }
+
+    if ( invalid_line != (unsigned)-1 ) {
+        idx = invalid_line;
+    } else if ( valid_line != (unsigned)-1) {
+        idx = valid_line;
+    } else abort(); // if an unreserved block exists, it is either invalid or replaceable 
+
+    return MISS;
+}
+
+enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned time, unsigned &idx )
+{
+    bool wb=false;
+    cache_block_t evicted;
+    enum cache_request_status result = access(addr,time,idx,wb,evicted);
+    assert(!wb);
+    return result;
+}
+
+enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted ) 
+{
+    m_access++;
+    shader_cache_access_log(m_core_id, m_type_id, 0); // log accesses to cache
+    enum cache_request_status status = probe(addr,idx);
+    
+    cache_block_t *line;
+    if(idx >= CRITICAL_LINES) {
+        line = &m_lines[idx - CRITICAL_LINES];
+    } else {
+        line = &m_critical_lines[idx];
+    }
+
+    switch (status) {
+    case HIT_RESERVED: 
+        m_pending_hit++;
+    case HIT: 
+        line.m_last_access_time=time; 
+        break;
+    case MISS:
+        m_miss++;
+        shader_cache_access_log(m_core_id, m_type_id, 1); // log cache misses
+        if ( m_config.m_alloc_policy == ON_MISS ) {
+            if( line.m_status == MODIFIED ) {
+                wb = true;
+                evicted = line;
+                if (line.c_reuse == false && line.nc_reuse == true && idx >= CRITICAL_LINES) {
+                    //CCBP[line.signature]−−;
+                } else if (line.c_reuse == false && line.nc_reuse == false) {
+                    //SHiP[line.signature]−−;
+                }
+            }
+            line.allocate( m_config.tag(addr), m_config.block_addr(addr), time );
+        }
+        break;
+    case RESERVATION_FAIL:
+        m_res_fail++;
+        shader_cache_access_log(m_core_id, m_type_id, 1); // log cache misses
+        break;
+    default:
+        fprintf( stderr, "tag_array::access - Error: Unknown"
+            "cache_request_status %d\n", status );
+        abort();
+    }
+    return status;
+}
 
 bool was_write_sent( const std::list<cache_event> &events )
 {
@@ -702,9 +855,9 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time){
     assert( e->second.m_valid );
     mf->set_data_size( e->second.m_data_size );
     if ( m_config.m_alloc_policy == ON_MISS )
-        m_tag_array->fill(e->second.m_cache_index,time);
+        m_tag_array->fill(sig, e->second.m_cache_index,time);
     else if ( m_config.m_alloc_policy == ON_FILL )
-        m_tag_array->fill(e->second.m_block_addr,time);
+        m_tag_array->fill(sig, e->second.m_block_addr,time);
     else abort();
     bool has_atomic = false;
     m_mshrs.mark_ready(e->second.m_block_addr, has_atomic);
@@ -1088,12 +1241,23 @@ data_cache::access( new_addr_type addr,
 /// granularity of individual blocks (Set by GPGPU-Sim configuration file)
 /// (the policy used in fermi according to the CUDA manual)
 enum cache_request_status
-l1_cache::access( new_addr_type addr,
+l1_cache::access( bool isCriticalWarp,
+                  new_addr_type addr,
                   mem_fetch *mf,
                   unsigned time,
                   std::list<cache_event> &events )
 {
-    return data_cache::access( addr, mf, time, events );
+    assert( mf->get_data_size() <= m_config.get_line_sz());
+    bool wr = mf->get_is_write();
+    new_addr_type block_addr = m_config.block_addr(addr);
+    unsigned cache_index = (unsigned)-1;
+    enum cache_request_status probe_status
+        = m_tag_array->probe(isCriticalWarp, block_addr, cache_index );
+    enum cache_request_status access_status
+        = process_tag_probe( wr, probe_status, addr, cache_index, mf, time, events );
+    m_stats.inc_stats(mf->get_access_type(),
+        m_stats.select_stats_status(probe_status, access_status));
+    return access_status;
 }
 
 // The l2 cache access function calls the base data_cache access

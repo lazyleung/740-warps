@@ -69,6 +69,8 @@ struct cache_block_t {
         m_fill_time=0;
         m_last_access_time=0;
         m_status=INVALID;
+        c_reuse = false;
+        nc_reuse = false;
     }
     void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time )
     {
@@ -79,11 +81,13 @@ struct cache_block_t {
         m_fill_time=0;
         m_status=RESERVED;
     }
-    void fill( unsigned time )
+    void fill( unsigned sig, unsigned time )
     {
         assert( m_status == RESERVED );
         m_status=VALID;
         m_fill_time=time;
+
+        signature = sig;
     }
 
     new_addr_type    m_tag;
@@ -92,6 +96,11 @@ struct cache_block_t {
     unsigned         m_last_access_time;
     unsigned         m_fill_time;
     cache_block_state    m_status;
+
+    //CACP stats
+    bool c_reuse;
+    bool nc_reuse;
+    new_addr_type signature;
 };
 
 enum replacement_policy_t {
@@ -358,6 +367,8 @@ public:
     void get_stats(unsigned &total_access, unsigned &total_misses, unsigned &total_hit_res, unsigned &total_res_fail) const;
 
 	void update_cache_parameters(cache_config &config);
+
+
 protected:
     // This constructor is intended for use only from derived classes that wish to
     // avoid unnecessary memory allocation that takes place in the
@@ -386,6 +397,20 @@ protected:
 
     int m_core_id; // which shader core is using this
     int m_type_id; // what kind of cache is this (normal, texture, constant)
+};
+
+class cacp_tag_array : public tag_array{
+    cacp_tag_array(cache_config &config, int core_id, int type_id );
+
+    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx );
+    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted );
+
+    void fill( new_addr_type addr, unsigned time );
+    void fill( unsigned idx, unsigned time );
+
+protected:
+    unsigned CRITICAL_LINES = 8;
+    cache_block_t *m_critical_lines; /* nbanks x nset x assoc lines in total */
 };
 
 class mshr_table {
@@ -925,10 +950,10 @@ protected:
 /// (the policy used in fermi according to the CUDA manual)
 class l1_cache : public data_cache {
 public:
-    l1_cache(const char *name, cache_config &config,
-            int core_id, int type_id, mem_fetch_interface *memport,
-            mem_fetch_allocator *mfcreator, enum mem_fetch_status status )
-            : data_cache(name,config,core_id,type_id,memport,mfcreator,status, L1_WR_ALLOC_R, L1_WRBK_ACC){}
+    // l1_cache(const char *name, cache_config &config,
+    //         int core_id, int type_id, mem_fetch_interface *memport,
+    //         mem_fetch_allocator *mfcreator, enum mem_fetch_status status )
+    //         : data_cache(name,config,core_id,type_id,memport,mfcreator,status, L1_WR_ALLOC_R, L1_WRBK_ACC){}
 
     virtual ~l1_cache(){}
 
@@ -938,7 +963,7 @@ public:
                 unsigned time,
                 std::list<cache_event> &events );
 
-protected:
+//protected:
     l1_cache( const char *name,
               cache_config &config,
               int core_id,
