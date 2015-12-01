@@ -1514,6 +1514,9 @@ public:
 
         m_shader_dynamic_warp_issue_distro.resize( config->num_shader() );
         m_shader_warp_slot_issue_distro.resize( config->num_shader() );
+
+		m_load_exec = 0;
+		memset(m_load_count, 0, sizeof(m_load_count));
     }
 
     ~shader_core_stats()
@@ -1547,6 +1550,13 @@ public:
         return m_shader_warp_slot_issue_distro;
     }
 
+	void count_mem_divergence(unsigned count) {
+		if (count > 0) {
+			m_load_exec++;
+			m_load_count[count]++;
+		}
+	}
+
 private:
     const shader_core_config *m_config;
 
@@ -1558,6 +1568,10 @@ private:
     std::vector<unsigned> m_last_shader_dynamic_warp_issue_distro;
     std::vector< std::vector<unsigned> > m_shader_warp_slot_issue_distro;
     std::vector<unsigned> m_last_shader_warp_slot_issue_distro;
+
+	// memory divergence measure
+	unsigned m_load_exec;
+	unsigned m_load_count[MAX_WARP_SIZE];
 
     friend class power_stat_t;
     friend class shader_core_ctx;
