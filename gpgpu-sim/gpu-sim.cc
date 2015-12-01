@@ -775,6 +775,20 @@ void gpgpu_sim::deadlock_check()
    }
 }
 
+bool gpgpu_sim::max_cta_check()
+{
+   if (m_config.gpu_max_cta_opt && (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt) ) {
+       //fflush(stdout);
+       printf("\n\n\n\nMax CTA # Reached at %u\n\n\n", gpu_tot_issued_cta);
+       //print_stats();
+       //update_stats();
+       fflush(stdout);
+       //abort();
+       return true;
+   }
+   return false;
+}
+
 /// printing the names and uids of a set of executed kernels (usually there is only one)
 std::string gpgpu_sim::executed_kernel_info_string() 
 {

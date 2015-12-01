@@ -379,6 +379,7 @@ public:
    void print_stats();
    void update_stats();
    void deadlock_check();
+   bool max_cta_check();
 
    void get_pdom_stack_top_info( unsigned sid, unsigned tid, unsigned *pc, unsigned *rpc );
 
