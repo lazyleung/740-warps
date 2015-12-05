@@ -414,7 +414,7 @@ class cacp_tag_array : public tag_array{
     signed *SHiP;
 
 protected:
-    unsigned CRITICAL_LINES = 8;
+    const unsigned CRITICAL_LINES = 8;
     cache_block_t *m_critical_lines; /* nbanks x nset x assoc lines in total */
 };
 
@@ -904,7 +904,7 @@ protected:
                    unsigned time,
                    std::list<cache_event> &events,
                    enum cache_request_status status, address_type pc ) {
-            wr_hit_we(addr, cache_index, mf, time, &events, status );
+            wr_hit_we(addr, cache_index, mf, time, events, status );
         }
     enum cache_request_status
         wr_hit_global_we_local_wb( new_addr_type addr,
