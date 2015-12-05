@@ -72,7 +72,7 @@ struct cache_block_t {
         c_reuse = false;
         nc_reuse = false;
     }
-    void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time )
+    void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time, address_type pc )
     {
         m_tag=tag;
         m_block_addr=block_addr;
@@ -80,14 +80,16 @@ struct cache_block_t {
         m_last_access_time=time;
         m_fill_time=0;
         m_status=RESERVED;
+
+        unsigned temp = ((unsigned) pc) ^ ((unsigned) block_addr)
+        unsigned mask = 255; // 2^8 - 1 = 8'b1111_1111 
+        signature = temp & mask;
     }
-    void fill( unsigned sig, unsigned time )
+    void fill( unsigned time )
     {
         assert( m_status == RESERVED );
         m_status=VALID;
         m_fill_time=time;
-
-        signature = sig;
     }
 
     new_addr_type    m_tag;
@@ -100,7 +102,7 @@ struct cache_block_t {
     //CACP stats
     bool c_reuse;
     bool nc_reuse;
-    new_addr_type signature;
+    unsigned signature;
 };
 
 enum replacement_policy_t {
@@ -407,6 +409,9 @@ class cacp_tag_array : public tag_array{
 
     void fill( new_addr_type addr, unsigned time );
     void fill( unsigned idx, unsigned time );
+
+    signed *CCBP; 
+    signed *SHiP;
 
 protected:
     unsigned CRITICAL_LINES = 8;

@@ -1407,6 +1407,22 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, war
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
 
+mem_stage_stall_type ldst_unit::process_L1D_access_queue( cache_t *cache, warp_inst_t &inst, address_type pc )
+{
+    mem_stage_stall_type result = NO_RC_FAIL;
+    if( inst.accessq_empty() )
+        return result;
+
+    if( !cache->data_port_free() ) 
+        return DATA_PORT_STALL; 
+
+    //const mem_access_t &access = inst.accessq_back();
+    mem_fetch *mf = m_mf_allocator->alloc(inst,inst.accessq_back());
+    std::list<cache_event> events;
+    enum cache_request_status status = cache->access(pcmf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events,pc);
+    return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
+}
+
 bool ldst_unit::constant_cycle( warp_inst_t &inst, mem_stage_stall_type &rc_fail, mem_stage_access_type &fail_type)
 {
    if( inst.empty() || ((inst.space.get_type() != const_space) && (inst.space.get_type() != param_space_kernel)) )
@@ -1438,7 +1454,7 @@ bool ldst_unit::texture_cycle( warp_inst_t &inst, mem_stage_stall_type &rc_fail,
    return inst.accessq_empty(); //done if empty.
 }
 
-bool ldst_unit::memory_cycle( warp_inst_t &inst, mem_stage_stall_type &stall_reason, mem_stage_access_type &access_type )
+bool ldst_unit::memory_cycle( warp_inst_t &inst, mem_stage_stall_type &stall_reason, mem_stage_access_type &access_type, address_type pc )
 {
    if( inst.empty() || 
        ((inst.space.get_type() != global_space) &&
@@ -1480,7 +1496,7 @@ bool ldst_unit::memory_cycle( warp_inst_t &inst, mem_stage_stall_type &stall_rea
        }
    } else {
        assert( CACHE_UNDEFINED != inst.cache_op );
-       stall_cond = process_memory_access_queue(m_L1D,inst);
+       stall_cond = process_L1D_access_queue(m_L1D,inst,pc);
    }
    if( !inst.accessq_empty() ) 
        stall_cond = COAL_STALL;

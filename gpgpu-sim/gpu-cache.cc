@@ -327,10 +327,13 @@ cacp_tag_array::cacp_tag_array( cache_config &config,
 {
     m_critical_lines = new cache_block_t[CRITICAL_LINES];
     m_lines = new cache_block_t[MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines() - CRITICAL_LINES];
+    // Signatures are 8 bit
+    CCBP = new signed[256];
+    SHiP = new signed[256];
     init( core_id, type_id );
 }
 
-enum cache_request_status cacp_tag_array::probe( isCriticalWarp, new_addr_type addr, unsigned &idx ) const {
+enum cache_request_status cacp_tag_array::probe( isCriticalWarp, new_addr_type addr, unsigned &idx) const {
     //assert( m_config.m_write_policy == READ_ONLY );
     unsigned set_index = m_config.set_index(addr);
     new_addr_type tag = m_config.tag(addr);
@@ -362,22 +365,22 @@ enum cache_request_status cacp_tag_array::probe( isCriticalWarp, new_addr_type a
                 idx = index;
                 if(isCriticalWarp){
                     line->c_reuse = true;
-                    //CCBP[line.signature]++;
-                    //SHiP[line.signature]++;
+                    if(CCBP[line.signature] < 3) CCBP[line.signature]++;
+                    SHiP[line.signature]++;
                 } else {
                     line->nc_reuse = true;
-                    //SHiP[line.signature]++;
+                    SHiP[line.signature]++;
                 }
                 return HIT;
             } else if ( line->m_status == MODIFIED ) {
                 idx = index;
                 if(isCriticalWarp){
                     line->c_reuse = true;
-                    //CCBP[line.signature]++;
-                    //SHiP[line.signature]++;
+                    if(CCBP[line.signature] < 3) CCBP[line.signature]++;
+                    SHiP[line.signature]++;
                 } else {
                     line->nc_reuse = true;
-                    //SHiP[line.signature]++;
+                    SHiP[line.signature]++;
                 }
                 return HIT;
             } else {
@@ -418,16 +421,16 @@ enum cache_request_status cacp_tag_array::probe( isCriticalWarp, new_addr_type a
     return MISS;
 }
 
-enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned time, unsigned &idx )
+enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned time, unsigned &idx, address_type pc )
 {
     bool wb=false;
     cache_block_t evicted;
-    enum cache_request_status result = access(addr,time,idx,wb,evicted);
+    enum cache_request_status result = access(addr,time,idx,wb,evicted,pc);
     assert(!wb);
     return result;
 }
 
-enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted ) 
+enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted, address_type pc ) 
 {
     m_access++;
     shader_cache_access_log(m_core_id, m_type_id, 0); // log accesses to cache
@@ -454,12 +457,12 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
                 wb = true;
                 evicted = line;
                 if (line.c_reuse == false && line.nc_reuse == true && idx >= CRITICAL_LINES) {
-                    //CCBP[line.signature]−−;
+                    if(CCBP[line.signature] > -3) CCBP[line.signature]--;
                 } else if (line.c_reuse == false && line.nc_reuse == false) {
-                    //SHiP[line.signature]−−;
+                    SHiP[line.signature]−−;
                 }
             }
-            line.allocate( m_config.tag(addr), m_config.block_addr(addr), time );
+            line.allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
         }
         break;
     case RESERVATION_FAIL:
@@ -927,6 +930,36 @@ void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_a
     }
 }
 
+void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_addr, unsigned cache_index, mem_fetch *mf,
+        unsigned time, bool &do_miss, bool &wb, cache_block_t &evicted, std::list<cache_event> &events, bool read_only, bool wa, address_type pc){
+
+    bool mshr_hit = m_mshrs.probe(block_addr);
+    bool mshr_avail = !m_mshrs.full(block_addr);
+    if ( mshr_hit && mshr_avail ) {
+        if(read_only)
+            m_tag_array->access(block_addr,time,cache_index,pc);
+        else
+            m_tag_array->access(block_addr,time,cache_index,wb,evicted,pc);
+
+        m_mshrs.add(block_addr,mf);
+        do_miss = true;
+    } else if ( !mshr_hit && mshr_avail && (m_miss_queue.size() < m_config.m_miss_queue_size) ) {
+        if(read_only)
+            m_tag_array->access(block_addr,time,cache_index,pc);
+        else
+            m_tag_array->access(block_addr,time,cache_index,wb,evicted,pc);
+
+        m_mshrs.add(block_addr,mf);
+        m_extra_mf_fields[mf] = extra_mf_fields(block_addr,cache_index, mf->get_data_size());
+        mf->set_data_size( m_config.get_line_sz() );
+        m_miss_queue.push_back(mf);
+        mf->set_status(m_miss_queue_status,time);
+        if(!wa)
+            events.push_back(READ_REQUEST_SENT);
+        do_miss = true;
+    }
+}
+
 
 /// Sends write request to lower level memory (write or writeback)
 void data_cache::send_write_request(mem_fetch *mf, cache_event request, unsigned time, std::list<cache_event> &events){
@@ -939,9 +972,18 @@ void data_cache::send_write_request(mem_fetch *mf, cache_event request, unsigned
 /****** Write-hit functions (Set by config file) ******/
 
 /// Write-back hit: Mark block as modified
-cache_request_status data_cache::wr_hit_wb(new_addr_type addr, unsigned cache_index, mem_fetch *mf, unsigned time, std::list<cache_event> &events, enum cache_request_status status ){
+cache_request_status data_cache::wr_hit_wb(new_addr_type addr, unsigned cache_index, mem_fetch *mf, unsigned time, std::list<cache_event> &events, enum cache_request_status status){
+    new_addr_type block_addr = m_config.block_addr(addr);
+    m_tag_array->access(block_addr,time,cache_index); // update LRU state
+    cache_block_t &block = m_tag_array->get_block(cache_index);
+    block.m_status = MODIFIED;
+
+    return HIT;
+}
+
+cache_request_status data_cache::wr_hit_wb(new_addr_type addr, unsigned cache_index, mem_fetch *mf, unsigned time, std::list<cache_event> &events, enum cache_request_status status, address_type pc ){
 	new_addr_type block_addr = m_config.block_addr(addr);
-	m_tag_array->access(block_addr,time,cache_index); // update LRU state
+	m_tag_array->access(block_addr,time,cache_index, pc); // update LRU state
 	cache_block_t &block = m_tag_array->get_block(cache_index);
 	block.m_status = MODIFIED;
 
@@ -962,6 +1004,21 @@ cache_request_status data_cache::wr_hit_wt(new_addr_type addr, unsigned cache_in
 	send_write_request(mf, WRITE_REQUEST_SENT, time, events);
 
 	return HIT;
+}
+
+cache_request_status data_cache::wr_hit_wt(new_addr_type addr, unsigned cache_index, mem_fetch *mf, unsigned time, std::list<cache_event> &events, enum cache_request_status status, address_type pc ){
+    if(miss_queue_full(0))
+        return RESERVATION_FAIL; // cannot handle request this cycle
+
+    new_addr_type block_addr = m_config.block_addr(addr);
+    m_tag_array->access(block_addr,time,cache_index, pc); // update LRU state
+    cache_block_t &block = m_tag_array->get_block(cache_index);
+    block.m_status = MODIFIED;
+
+    // generate a write-through
+    send_write_request(mf, WRITE_REQUEST_SENT, time, events);
+
+    return HIT;
 }
 
 /// Write-evict hit: Send request to lower level memory and invalidate corresponding block
@@ -1095,6 +1152,27 @@ data_cache::rd_hit_base( new_addr_type addr,
     return HIT;
 }
 
+enum cache_request_status
+data_cache::rd_hit_base( new_addr_type addr,
+                         unsigned cache_index,
+                         mem_fetch *mf,
+                         unsigned time,
+                         std::list<cache_event> &events,
+                         enum cache_request_status status,
+                         address_type pc )
+{
+    new_addr_type block_addr = m_config.block_addr(addr);
+    m_tag_array->access(block_addr,time,cache_index, pc);
+    // Atomics treated as global read/write requests - Perform read, mark line as
+    // MODIFIED
+    if(mf->isatomic()){ 
+        assert(mf->get_access_type() == GLOBAL_ACC_R);
+        cache_block_t &block = m_tag_array->get_block(cache_index);
+        block.m_status = MODIFIED;  // mark line as dirty
+    }
+    return HIT;
+}
+
 /****** Read miss functions (Set by config file) ******/
 
 /// Baseline read miss: Send read request to lower level memory,
@@ -1106,6 +1184,41 @@ data_cache::rd_miss_base( new_addr_type addr,
                           unsigned time,
                           std::list<cache_event> &events,
                           enum cache_request_status status ){
+    if(miss_queue_full(1))
+        // cannot handle request this cycle
+        // (might need to generate two requests)
+        return RESERVATION_FAIL; 
+
+    new_addr_type block_addr = m_config.block_addr(addr);
+    bool do_miss = false;
+    bool wb = false;
+    cache_block_t evicted;
+    send_read_request( addr,
+                       block_addr,
+                       cache_index,
+                       mf, time, do_miss, wb, evicted, events, false, false);
+
+    if( do_miss ){
+        // If evicted block is modified and not a write-through
+        // (already modified lower level)
+        if(wb && (m_config.m_write_policy != WRITE_THROUGH) ){ 
+            mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
+                m_wrbk_type,m_config.get_line_sz(),true);
+        send_write_request(wb, WRITE_BACK_REQUEST_SENT, time, events);
+    }
+        return MISS;
+    }
+    return RESERVATION_FAIL;
+}
+
+enum cache_request_status
+data_cache::rd_miss_base( new_addr_type addr,
+                          unsigned cache_index,
+                          mem_fetch *mf,
+                          unsigned time,
+                          std::list<cache_event> &events,
+                          enum cache_request_status status
+                          address_type pc ){
     if(miss_queue_full(1))
         // cannot handle request this cycle
         // (might need to generate two requests)
@@ -1151,6 +1264,40 @@ read_only_cache::access( new_addr_type addr,
 
     if ( status == HIT ) {
         cache_status = m_tag_array->access(block_addr,time,cache_index); // update LRU state
+    }else if ( status != RESERVATION_FAIL ) {
+        if(!miss_queue_full(0)){
+            bool do_miss=false;
+            send_read_request(addr, block_addr, cache_index, mf, time, do_miss, events, true, false);
+            if(do_miss)
+                cache_status = MISS;
+            else
+                cache_status = RESERVATION_FAIL;
+        }else{
+            cache_status = RESERVATION_FAIL;
+        }
+    }
+
+    m_stats.inc_stats(mf->get_access_type(), m_stats.select_stats_status(status, cache_status));
+    return cache_status;
+}
+
+enum cache_request_status
+read_only_cache::access( new_addr_type addr,
+                         mem_fetch *mf,
+                         unsigned time,
+                         std::list<cache_event> &events,
+                         address_type pc )
+{
+    assert( mf->get_data_size() <= m_config.get_line_sz());
+    assert(m_config.m_write_policy == READ_ONLY);
+    assert(!mf->get_is_write());
+    new_addr_type block_addr = m_config.block_addr(addr);
+    unsigned cache_index = (unsigned)-1;
+    enum cache_request_status status = m_tag_array->probe(block_addr,cache_index);
+    enum cache_request_status cache_status = RESERVATION_FAIL;
+
+    if ( status == HIT ) {
+        cache_status = m_tag_array->access(block_addr,time,cache_index,pc); // update LRU state
     }else if ( status != RESERVATION_FAIL ) {
         if(!miss_queue_full(0)){
             bool do_miss=false;
@@ -1245,7 +1392,8 @@ l1_cache::access( bool isCriticalWarp,
                   new_addr_type addr,
                   mem_fetch *mf,
                   unsigned time,
-                  std::list<cache_event> &events )
+                  std::list<cache_event> &events,
+                  address_type pc )
 {
     assert( mf->get_data_size() <= m_config.get_line_sz());
     bool wr = mf->get_is_write();
@@ -1254,9 +1402,50 @@ l1_cache::access( bool isCriticalWarp,
     enum cache_request_status probe_status
         = m_tag_array->probe(isCriticalWarp, block_addr, cache_index );
     enum cache_request_status access_status
-        = process_tag_probe( wr, probe_status, addr, cache_index, mf, time, events );
+        = process_tag_probe( wr, probe_status, addr, cache_index, mf, time, events, pc );
     m_stats.inc_stats(mf->get_access_type(),
         m_stats.select_stats_status(probe_status, access_status));
+    return access_status;
+}
+
+enum cache_request_status
+l1_cache::process_tag_probe( bool wr,
+                               enum cache_request_status probe_status,
+                               new_addr_type addr,
+                               unsigned cache_index,
+                               mem_fetch* mf,
+                               unsigned time,
+                               std::list<cache_event>& events,
+                               address_type pc )
+{
+    // Each function pointer ( m_[rd/wr]_[hit/miss] ) is set in the
+    // data_cache constructor to reflect the corresponding cache configuration
+    // options. Function pointers were used to avoid many long conditional
+    // branches resulting from many cache configuration options.
+    cache_request_status access_status = probe_status;
+    if(wr){ // Write
+        if(probe_status == HIT){
+            access_status = (this->*m_wr_hit)( addr,
+                                      cache_index,
+                                      mf, time, events, probe_status, pc );
+        }else if ( probe_status != RESERVATION_FAIL ) {
+            access_status = (this->*m_wr_miss)( addr,
+                                       cache_index,
+                                       mf, time, events, probe_status, pc );
+        }
+    }else{ // Read
+        if(probe_status == HIT){
+            access_status = (this->*m_rd_hit)( addr,
+                                      cache_index,
+                                      mf, time, events, probe_status, pc );
+        }else if ( probe_status != RESERVATION_FAIL ) {
+            access_status = (this->*m_rd_miss)( addr,
+                                       cache_index,
+                                       mf, time, events, probe_status, pc );
+        }
+    }
+
+    m_bandwidth_management.use_data_port(mf, access_status, events); 
     return access_status;
 }
 
