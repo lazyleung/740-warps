@@ -931,6 +931,14 @@ void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_a
 }
 
 void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_addr, unsigned cache_index, mem_fetch *mf,
+        unsigned time, bool &do_miss, std::list<cache_event> &events, bool read_only, bool wa, address_type pc){
+
+    bool wb=false;
+    cache_block_t e;
+    send_read_request(addr, block_addr, cache_index, mf, time, do_miss, wb, e, events, read_only, wa, pc);
+}
+
+void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_addr, unsigned cache_index, mem_fetch *mf,
         unsigned time, bool &do_miss, bool &wb, cache_block_t &evicted, std::list<cache_event> &events, bool read_only, bool wa, address_type pc){
 
     bool mshr_hit = m_mshrs.probe(block_addr);
@@ -1045,6 +1053,14 @@ enum cache_request_status data_cache::wr_hit_global_we_local_wb(new_addr_type ad
 		return wr_hit_wb(addr, cache_index, mf, time, events, status); // Write-back
 }
 
+enum cache_request_status data_cache::wr_hit_global_we_local_wb(new_addr_type addr, unsigned cache_index, mem_fetch *mf, unsigned time, std::list<cache_event> &events, enum cache_request_status status, address_type pc ){
+    bool evict = (mf->get_access_type() == GLOBAL_ACC_W); // evict a line that hits on global memory write
+    if(evict)
+        return wr_hit_we(addr, cache_index, mf, time, events, status, pc); // Write-evict
+    else
+        return wr_hit_wb(addr, cache_index, mf, time, events, status, pc); // Write-back
+}
+
 /****** Write-miss functions (Set by config file) ******/
 
 /// Write-allocate miss: Send write request to lower level memory
@@ -1094,6 +1110,67 @@ data_cache::wr_miss_wa( new_addr_type addr,
     // Send read request resulting from write miss
     send_read_request(addr, block_addr, cache_index, n_mf, time, do_miss, wb,
         evicted, events, false, true);
+
+    if( do_miss ){
+        // If evicted block is modified and not a write-through
+        // (already modified lower level)
+        if( wb && (m_config.m_write_policy != WRITE_THROUGH) ) { 
+            mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
+                m_wrbk_type,m_config.get_line_sz(),true);
+            m_miss_queue.push_back(wb);
+            wb->set_status(m_miss_queue_status,time);
+        }
+        return MISS;
+    }
+
+    return RESERVATION_FAIL;
+}
+enum cache_request_status
+data_cache::wr_miss_wa( new_addr_type addr,
+                        unsigned cache_index, mem_fetch *mf,
+                        unsigned time, std::list<cache_event> &events,
+                        enum cache_request_status status,
+                        address_type pc )
+{
+    new_addr_type block_addr = m_config.block_addr(addr);
+
+    // Write allocate, maximum 3 requests (write miss, read request, write back request)
+    // Conservatively ensure the worst-case request can be handled this cycle
+    bool mshr_hit = m_mshrs.probe(block_addr);
+    bool mshr_avail = !m_mshrs.full(block_addr);
+    if(miss_queue_full(2) 
+        || (!(mshr_hit && mshr_avail) 
+        && !(!mshr_hit && mshr_avail 
+        && (m_miss_queue.size() < m_config.m_miss_queue_size))))
+        return RESERVATION_FAIL;
+
+    send_write_request(mf, WRITE_REQUEST_SENT, time, events);
+    // Tries to send write allocate request, returns true on success and false on failure
+    //if(!send_write_allocate(mf, addr, block_addr, cache_index, time, events))
+    //    return RESERVATION_FAIL;
+
+    const mem_access_t *ma = new  mem_access_t( m_wr_alloc_type,
+                        mf->get_addr(),
+                        mf->get_data_size(),
+                        false, // Now performing a read
+                        mf->get_access_warp_mask(),
+                        mf->get_access_byte_mask() );
+
+    mem_fetch *n_mf = new mem_fetch( *ma,
+                    NULL,
+                    mf->get_ctrl_size(),
+                    mf->get_wid(),
+                    mf->get_sid(),
+                    mf->get_tpc(),
+                    mf->get_mem_config());
+
+    bool do_miss = false;
+    bool wb = false;
+    cache_block_t evicted;
+
+    // Send read request resulting from write miss
+    send_read_request(addr, block_addr, cache_index, n_mf, time, do_miss, wb,
+        evicted, events, false, true, pc);
 
     if( do_miss ){
         // If evicted block is modified and not a write-through
@@ -1231,7 +1308,7 @@ data_cache::rd_miss_base( new_addr_type addr,
     send_read_request( addr,
                        block_addr,
                        cache_index,
-                       mf, time, do_miss, wb, evicted, events, false, false);
+                       mf, time, do_miss, wb, evicted, events, false, false, pc);
 
     if( do_miss ){
         // If evicted block is modified and not a write-through
@@ -1301,7 +1378,7 @@ read_only_cache::access( new_addr_type addr,
     }else if ( status != RESERVATION_FAIL ) {
         if(!miss_queue_full(0)){
             bool do_miss=false;
-            send_read_request(addr, block_addr, cache_index, mf, time, do_miss, events, true, false);
+            send_read_request(addr, block_addr, cache_index, mf, time, do_miss, events, true, false, pc);
             if(do_miss)
                 cache_status = MISS;
             else

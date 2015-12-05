@@ -81,7 +81,7 @@ struct cache_block_t {
         m_fill_time=0;
         m_status=RESERVED;
 
-        unsigned temp = ((unsigned) pc) ^ ((unsigned) block_addr)
+        unsigned temp = ((unsigned) pc) ^ ((unsigned) block_addr);
         unsigned mask = 255; // 2^8 - 1 = 8'b1111_1111 
         signature = temp & mask;
     }
@@ -699,6 +699,8 @@ protected:
     /// Read miss handler. Check MSHR hit or MSHR available
     void send_read_request(new_addr_type addr, new_addr_type block_addr, unsigned cache_index, mem_fetch *mf,
     		unsigned time, bool &do_miss, bool &wb, cache_block_t &evicted, std::list<cache_event> &events, bool read_only, bool wa);
+    void send_read_request(new_addr_type addr, new_addr_type block_addr, unsigned cache_index, mem_fetch *mf,
+            unsigned time, bool &do_miss, bool &wb, cache_block_t &evicted, std::list<cache_event> &events, bool read_only, bool wa, address_type pc);
 
     /// Sub-class containing all metadata for port bandwidth management 
     class bandwidth_management 
@@ -864,12 +866,28 @@ protected:
                    std::list<cache_event> &events,
                    enum cache_request_status status ); // write-back
     enum cache_request_status
+        wr_hit_wb( new_addr_type addr,
+                   unsigned cache_index,
+                   mem_fetch *mf,
+                   unsigned time,
+                   std::list<cache_event> &events,
+                   enum cache_request_status status,
+                   address_type pc ); // write-back
+    enum cache_request_status
         wr_hit_wt( new_addr_type addr,
                    unsigned cache_index,
                    mem_fetch *mf,
                    unsigned time,
                    std::list<cache_event> &events,
                    enum cache_request_status status ); // write-through
+    enum cache_request_status
+        wr_hit_wt( new_addr_type addr,
+                   unsigned cache_index,
+                   mem_fetch *mf,
+                   unsigned time,
+                   std::list<cache_event> &events,
+                   enum cache_request_status status,
+                   address_type pc ); // write-through
 
     /// Marks block as INVALID and sends write request to lower level memory
     enum cache_request_status
@@ -880,12 +898,28 @@ protected:
                    std::list<cache_event> &events,
                    enum cache_request_status status ); // write-evict
     enum cache_request_status
+        wr_hit_we( new_addr_type addr,
+                   unsigned cache_index,
+                   mem_fetch *mf,
+                   unsigned time,
+                   std::list<cache_event> &events,
+                   enum cache_request_status status, address_type pc ) {
+            wr_hit_we(addr, cache_index, mf, time, &events, status );
+        }
+    enum cache_request_status
         wr_hit_global_we_local_wb( new_addr_type addr,
                                    unsigned cache_index,
                                    mem_fetch *mf,
                                    unsigned time,
                                    std::list<cache_event> &events,
                                    enum cache_request_status status );
+        wr_hit_global_we_local_wb( new_addr_type addr,
+                                   unsigned cache_index,
+                                   mem_fetch *mf,
+                                   unsigned time,
+                                   std::list<cache_event> &events,
+                                   enum cache_request_status status,
+                                   address_type pc );
         // global write-evict, local write-back
 
 
@@ -907,12 +941,30 @@ protected:
                     std::list<cache_event> &events,
                     enum cache_request_status status ); // write-allocate
     enum cache_request_status
+        wr_miss_wa( new_addr_type addr,
+                    unsigned cache_index,
+                    mem_fetch *mf,
+                    unsigned time,
+                    std::list<cache_event> &events,
+                    enum cache_request_status status,
+                    address_type pc ); // write-allocate
+    enum cache_request_status
         wr_miss_no_wa( new_addr_type addr,
                        unsigned cache_index,
                        mem_fetch *mf,
                        unsigned time,
                        std::list<cache_event> &events,
                        enum cache_request_status status ); // no write-allocate
+    enum cache_request_status
+        wr_miss_no_wa( new_addr_type addr,
+                       unsigned cache_index,
+                       mem_fetch *mf,
+                       unsigned time,
+                       std::list<cache_event> &events,
+                       enum cache_request_status status,
+                       address_type pc ){
+        wr_miss_no_wa( addr,cache_index,mf,time,events,status );    
+    } // no write-allocate
 
     // Currently no separate functions for reads
     /******* Read-hit configs *******/
@@ -930,6 +982,14 @@ protected:
                      unsigned time,
                      std::list<cache_event> &events,
                      enum cache_request_status status );
+    enum cache_request_status
+        rd_hit_base( new_addr_type addr,
+                     unsigned cache_index,
+                     mem_fetch *mf,
+                     unsigned time,
+                     std::list<cache_event> &events,
+                     enum cache_request_status status,
+                     address_type pc );
 
     /******* Read-miss configs *******/
     enum cache_request_status
@@ -946,6 +1006,14 @@ protected:
                       unsigned time,
                       std::list<cache_event> &events,
                       enum cache_request_status status );
+    enum cache_request_status
+        rd_miss_base( new_addr_type addr,
+                      unsigned cache_index,
+                      mem_fetch*mf,
+                      unsigned time,
+                      std::list<cache_event> &events,
+                      enum cache_request_status status,
+                      address_type pc );
 
 };
 
