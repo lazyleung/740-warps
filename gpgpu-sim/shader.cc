@@ -462,6 +462,12 @@ void shader_core_stats::print( FILE* fout ) const
 
    fprintf(fout, "gpu_reg_bank_conflict_stalls = %d\n", gpu_reg_bank_conflict_stalls);
 
+	// memory divergence stats
+	fprintf(fout, "Memory Divergence Statistics:\n");
+	fprintf(fout, "load/store instructions: %u\n", m_load_exec);
+	for (unsigned i = 0; i < m_config->warp_size; i++) 
+		fprintf(fout, "%uI: %u\t", i, m_load_count[i]);
+
    fprintf(fout, "Warp Occupancy Distribution:\n");
    fprintf(fout, "Stall:%d\t", shader_cycle_distro[2]);
    fprintf(fout, "W0_Idle:%d\t", shader_cycle_distro[0]);
@@ -715,6 +721,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
     m_stats->shader_cycle_distro[2+(*pipe_reg)->active_count()]++;
     func_exec_inst( **pipe_reg );
+	m_stats->count_mem_divergence((*pipe_reg)->accessq_count());
     if( next_inst->op == BARRIER_OP ){
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
         m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));

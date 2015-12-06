@@ -775,6 +775,20 @@ void gpgpu_sim::deadlock_check()
    }
 }
 
+bool gpgpu_sim::max_cta_check()
+{
+   if (m_config.gpu_max_cta_opt && (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt) ) {
+       //fflush(stdout);
+       printf("\n\n\n\nMax CTA # Reached at %u\n\n\n", gpu_tot_issued_cta);
+       //print_stats();
+       //update_stats();
+       fflush(stdout);
+       //abort();
+       return true;
+   }
+   return false;
+}
+
 /// printing the names and uids of a set of executed kernels (usually there is only one)
 std::string gpgpu_sim::executed_kernel_info_string() 
 {
@@ -893,8 +907,6 @@ void gpgpu_sim::gpu_print_stat()
    printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn+gpu_sim_insn);
    printf("gpu_tot_ipc = %12.4f\n", (float)(gpu_tot_sim_insn+gpu_sim_insn) / (gpu_tot_sim_cycle+gpu_sim_cycle));
    printf("gpu_tot_issued_cta = %lld\n", gpu_tot_issued_cta);
-
-
 
    // performance counter for stalls due to congestion.
    printf("gpu_stall_dramfull = %d\n", gpu_stall_dramfull);
@@ -1159,6 +1171,7 @@ void gpgpu_sim::issue_block2core()
             m_total_cta_launched += num;
         }
     }
+    gpu_tot_issued_cta = m_total_cta_launched;
 }
 
 unsigned long long g_single_step=0; // set this in gdb to single step the pipeline
