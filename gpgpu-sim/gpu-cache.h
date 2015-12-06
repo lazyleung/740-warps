@@ -634,6 +634,7 @@ class cache_t {
 public:
     virtual ~cache_t() {}
     virtual enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events ) =  0;
+    virtual enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events, address_type pc, bool isCriticalWarp ) =  0;
 
     // accessors for cache bandwidth availability 
     virtual bool data_port_free() const = 0; 
@@ -684,6 +685,7 @@ public:
 	}
 
     virtual enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events ) =  0;
+    virtual enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events, address_type pc, bool isCriticalWarp ) =  0;
     /// Sends next request to lower level of memory
     void cycle();
     /// Interface for response from lower memory level (model bandwidth restictions in caller)
@@ -814,6 +816,7 @@ public:
 
     /// Access cache for read_only_cache: returns RESERVATION_FAIL if request could not be accepted (for any reason)
     virtual enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events );
+    virtual enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events, address_type pc, bool isCriticalWarp );
 
     virtual ~read_only_cache(){}
 
@@ -879,6 +882,12 @@ public:
                                               mem_fetch *mf,
                                               unsigned time,
                                               std::list<cache_event> &events );
+    virtual enum cache_request_status access( new_addr_type addr,
+                                              mem_fetch *mf,
+                                              unsigned time,
+                                              std::list<cache_event> &events,
+                                              address_type pc,
+                                              bool isCriticalWarp );
 protected:
     data_cache( const char *name,
                 cache_config &config,
@@ -1080,6 +1089,12 @@ public:
         access( new_addr_type addr,
                 mem_fetch *mf,
                 unsigned time,
+                std::list<cache_event> &events );
+
+    virtual enum cache_request_status
+        access( new_addr_type addr,
+                mem_fetch *mf,
+                unsigned time,
                 std::list<cache_event> &events,
                 address_type pc,
                 bool isCriticalWarp );
@@ -1242,6 +1257,13 @@ public:
                 mem_fetch *mf,
                 unsigned time,
                 std::list<cache_event> &events );
+    virtual enum cache_request_status
+        access( new_addr_type addr,
+                mem_fetch *mf,
+                unsigned time,
+                std::list<cache_event> &events,
+                address_type pc,
+                bool isCriticalWarp );
 };
 
 /*****************************************************************************/
@@ -1279,6 +1301,7 @@ public:
     /// since unlike a normal CPU cache, a "HIT" in texture cache does not
     /// mean the data is ready (still need to get through fragment fifo)
     enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events );
+    enum cache_request_status access( new_addr_type addr, mem_fetch *mf, unsigned time, std::list<cache_event> &events, address_type pc, bool isCriticalWarp );
     void cycle();
     /// Place returning cache block into reorder buffer
     void fill( mem_fetch *mf, unsigned time );

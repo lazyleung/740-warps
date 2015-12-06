@@ -1205,6 +1205,7 @@ protected:
                                                       mem_fetch *mf,
                                                       enum cache_request_status status );
    mem_stage_stall_type process_memory_access_queue( cache_t *cache, warp_inst_t &inst );
+   mem_stage_stall_type process_L1D_access_queue( cache_t *cache, warp_inst_t &inst, address_type pc, bool isCrticalWarp );
 
    const memory_config *m_memory_config;
    class mem_fetch_interface *m_icnt;

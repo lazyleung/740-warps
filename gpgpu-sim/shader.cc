@@ -1407,7 +1407,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, war
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
 
-mem_stage_stall_type ldst_unit::process_L1D_access_queue( cache_t *cache, warp_inst_t &inst, address_type pc )
+mem_stage_stall_type ldst_unit::process_L1D_access_queue( cache_t *cache, warp_inst_t &inst, address_type pc, bool isCriticalWarp )
 {
     mem_stage_stall_type result = NO_RC_FAIL;
     if( inst.accessq_empty() )
@@ -1419,7 +1419,7 @@ mem_stage_stall_type ldst_unit::process_L1D_access_queue( cache_t *cache, warp_i
     //const mem_access_t &access = inst.accessq_back();
     mem_fetch *mf = m_mf_allocator->alloc(inst,inst.accessq_back());
     std::list<cache_event> events;
-    enum cache_request_status status = cache->access(pcmf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events,pc);
+    enum cache_request_status status = cache->access(mf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events,pc,isCriticalWarp);
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
 
@@ -1454,7 +1454,7 @@ bool ldst_unit::texture_cycle( warp_inst_t &inst, mem_stage_stall_type &rc_fail,
    return inst.accessq_empty(); //done if empty.
 }
 
-bool ldst_unit::memory_cycle( warp_inst_t &inst, mem_stage_stall_type &stall_reason, mem_stage_access_type &access_type, address_type pc )
+bool ldst_unit::memory_cycle( warp_inst_t &inst, mem_stage_stall_type &stall_reason, mem_stage_access_type &access_type )
 {
    if( inst.empty() || 
        ((inst.space.get_type() != global_space) &&
@@ -1496,7 +1496,9 @@ bool ldst_unit::memory_cycle( warp_inst_t &inst, mem_stage_stall_type &stall_rea
        }
    } else {
        assert( CACHE_UNDEFINED != inst.cache_op );
-       stall_cond = process_L1D_access_queue(m_L1D,inst,pc);
+       address_type pc = 0;
+       bool isCriticalWarp = true;
+       stall_cond = process_L1D_access_queue(m_L1D,inst,pc,isCriticalWarp);
    }
    if( !inst.accessq_empty() ) 
        stall_cond = COAL_STALL;
@@ -1695,19 +1697,13 @@ ldst_unit::ldst_unit( mem_fetch_interface *icnt,
     if( !m_config->m_L1D_config.disabled() ) {
         char L1D_name[STRSIZE];
         snprintf(L1D_name, STRSIZE, "L1D_%03d", m_sid);
-        m_cacp_tag_arrary = new cacp_tag_array (
-                              m_config->m_L1D_config,
-                              m_sid,
-                              get_shader_normal_cache_id()
-                              );
         m_L1D = new l1_cache( L1D_name,
                               m_config->m_L1D_config,
                               m_sid,
                               get_shader_normal_cache_id(),
                               m_icnt,
                               m_mf_allocator,
-                              IN_L1D_MISS_QUEUE,
-                              m_cacp_tag_arrary
+                              IN_L1D_MISS_QUEUE
                               );
     }
 }
