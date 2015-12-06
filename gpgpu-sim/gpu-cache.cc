@@ -261,21 +261,21 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
     return status;
 }
 
-void tag_array::fill( new_addr_type sig, new_addr_type addr, unsigned time )
+void tag_array::fill( new_addr_type addr, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_FILL );
     unsigned idx;
     enum cache_request_status status = probe(addr,idx);
     assert(status==MISS); // MSHR should have prevented redundant memory request
-    m_lines[idx].allocate( m_config.tag(addr), m_config.block_addr(addr), time );
-    m_lines[idx].fill(sig, time);
+    m_lines[idx].allocate( m_config.tag(addr), m_config.block_addr(addr), time);
+    m_lines[idx].fill(time);
 }
 
-void tag_array::fill( new_addr_type sig, unsigned index, unsigned time )
+void tag_array::fill( unsigned index, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_MISS );
-    m_lines[index].fill(sig, time);
-
+    m_lines[index].fill(time);
+}
 
 void tag_array::flush() 
 {
@@ -475,6 +475,40 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
         abort();
     }
     return status;
+}
+
+void cacp_tag_array::fill( new_addr_type addr, unsigned time, address_type pc )
+{
+    assert( m_config.m_alloc_policy == ON_FILL );
+    unsigned idx;
+    enum cache_request_status status = probe(addr,idx);
+    assert(status==MISS); // MSHR should have prevented redundant memory request
+    if(idx >= CRITICAL_LINES) {
+        idx = idx - CRITICAL_LINES;
+    }
+    m_lines[idx].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc);
+    m_lines[idx].fill(time); 
+}
+
+void cacp_tag_array::fill( unsigned index, unsigned time )
+{
+    assert( m_config.m_alloc_policy == ON_MISS );
+    unsigned idx = index;
+    if(idx >= CRITICAL_LINES) {
+        idx = idx - CRITICAL_LINES;
+    }
+    m_lines[idx].fill(time);
+}
+
+void cacp_tag_array::flush() 
+{
+    for (unsigned i=0; i < m_config.get_num_lines(); i++) {
+        unsigned idx = i;
+        if(idx >= CRITICAL_LINES) {
+            idx = idx - CRITICAL_LINES;
+        }
+        m_lines[idx].m_status = INVALID;
+    }
 }
 
 bool was_write_sent( const std::list<cache_event> &events )

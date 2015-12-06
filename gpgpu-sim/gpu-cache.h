@@ -74,6 +74,16 @@ struct cache_block_t {
         c_reuse = false;
         nc_reuse = false;
     }
+    void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time)
+    {
+        m_tag=tag;
+        m_block_addr=block_addr;
+        m_alloc_time=time;
+        m_last_access_time=time;
+        m_fill_time=0;
+        m_status=RESERVED;
+        signature = 0;
+    }
     void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time, address_type pc )
     {
         m_tag=tag;
@@ -406,11 +416,21 @@ protected:
 class cacp_tag_array : public tag_array{
     cacp_tag_array(cache_config &config, int core_id, int type_id );
 
-    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx );
-    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted );
+    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, address_type pc );
+    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted, address_type pc );
 
-    void fill( new_addr_type addr, unsigned time );
-    void fill( unsigned idx, unsigned time );
+    void fill( new_addr_type addr, unsigned time, address_type pc );
+    void fill( unsigned idx, unsigned time, address_type pc );
+
+    unsigned size() const { return m_config.get_num_lines();}
+    cache_block_t &get_block(unsigned idx) { 
+        if(idx >= CRITICAL_LINES) {
+            idx = idx - CRITICAL_LINES;
+        }
+        return m_lines[idx];
+    }
+
+    void flush(); // flash invalidate all entries
 
     signed *CCBP; 
     signed *SHiP;
