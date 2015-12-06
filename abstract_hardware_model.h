@@ -834,7 +834,7 @@ public:
     { 
         m_empty=true; 
     }
-    void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id ) 
+    void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id, address_type pc_in, bool isCriticalWarp_in ) 
     {
         m_warp_active_mask = mask;
         m_warp_issued_mask = mask; 
@@ -845,6 +845,8 @@ public:
         cycles = initiation_interval;
         m_cache_hit=false;
         m_empty=false;
+        m_pc = pc_in;
+        m_isCriticalWarp = isCriticalWarp_in;
     }
     const active_mask_t & get_active_mask() const
     {
@@ -964,8 +966,12 @@ public:
     void print( FILE *fout ) const;
     unsigned get_uid() const { return m_uid; }
 
+    bool isCriticalWarp() { return m_isCriticalWarp; }
+    address_type getPC() { return m_pc; }
 
 protected:
+    bool m_isCriticalWarp;
+    address_type m_pc;
 
     unsigned m_uid;
     bool m_empty;

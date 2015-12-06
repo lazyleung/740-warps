@@ -115,6 +115,7 @@ public:
         m_start_cycle = sim_cycle;
         m_inst_count = 0LL;
         m_criticality = 0;
+        m_isCrticalWarp = false;
     }
     void init( address_type start_pc,
                unsigned cta_id,
@@ -139,6 +140,7 @@ public:
         m_start_cycle = sim_cycle;
         m_inst_count = 0LL;
         m_criticality = 0;
+        m_isCrticalWarp = false;
     }
 
     bool functional_done() const;
@@ -247,6 +249,10 @@ public:
     void dec_inst_disparity();
     void update_stall_cycles();
     void update_criticality();
+    void setCritical() { m_isCrticalWarp = true; }
+    void notCritical() { m_isCrticalWarp = false; }
+    bool isCrticalWarp() { return m_isCrticalWarp; }
+
 
 private:
     static const unsigned IBUFFER_SIZE=2;
@@ -261,6 +267,7 @@ private:
     unsigned long long m_start_cycle;       // gpu_sim_cycle of start of warp execution
     unsigned long long m_inst_count;        // Instructions Issued
     unsigned m_criticality;                 // Criticality counter
+    bool m_isCrticalWarp;
 
     address_type m_next_pc;
     unsigned n_completed;          // number of threads in warp completed

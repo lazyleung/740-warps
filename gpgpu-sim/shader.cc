@@ -706,7 +706,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     m_warp[warp_id].ibuffer_free();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
-    (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
+    (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id(),m_warp[warp_id].get_pc(),m_warp[warp_id].isCriticalWarp() ); // dynamic instruction information
     m_stats->shader_cycle_distro[2+(*pipe_reg)->active_count()]++;
     func_exec_inst( **pipe_reg );
 	m_stats->count_mem_divergence((*pipe_reg)->accessq_count());
@@ -822,7 +822,9 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
 
         // Greedily execute until no more instructions available
         T greedy_value = *last_issued_from_input;
+        greedy_value.notCritical();
         result_list.push_back( greedy_value );
+
 
         // Perform GTO within max_criticality warps
         typename std::vector< T >::iterator iter = temp.begin();
@@ -836,13 +838,17 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
         }
 
         // Prevent greedy being pushed twice
-        if ( oldest != greedy_value)
+        if ( oldest != greedy_value) {
+            oldest.notCritical();
             result_list.push_back( oldest );
+        }
 
         // Push rest of warps
+        iter = temp.begin();
         for ( unsigned count = 0; count < num_warps_to_add; ++count, ++iter ) {
             // Prevent greedy and oldest being pushed twice
             if ( *iter != greedy_value && *iter != oldest) {
+                *iter.notCritical();
                 result_list.push_back( *iter );
             }
         }
@@ -948,6 +954,7 @@ void scheduler_unit::cycle()
             checked++;
         }
         if ( issued ) {
+            (*iter)->setCritical();
             // This might be a bit inefficient, but we need to maintain
             // two ordered list for proper scheduler execution.
             // We could remove the need for this loop by associating a
@@ -1407,7 +1414,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, war
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
 
-mem_stage_stall_type ldst_unit::process_L1D_access_queue( cache_t *cache, warp_inst_t &inst, address_type pc, bool isCriticalWarp )
+mem_stage_stall_type ldst_unit::process_L1D_access_queue( cache_t *cache, warp_inst_t &inst )
 {
     mem_stage_stall_type result = NO_RC_FAIL;
     if( inst.accessq_empty() )
@@ -1419,7 +1426,7 @@ mem_stage_stall_type ldst_unit::process_L1D_access_queue( cache_t *cache, warp_i
     //const mem_access_t &access = inst.accessq_back();
     mem_fetch *mf = m_mf_allocator->alloc(inst,inst.accessq_back());
     std::list<cache_event> events;
-    enum cache_request_status status = cache->access(mf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events,pc,isCriticalWarp);
+    enum cache_request_status status = cache->access(mf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events,inst->pc,inst->isCriticalWarp);
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
 
@@ -1496,9 +1503,7 @@ bool ldst_unit::memory_cycle( warp_inst_t &inst, mem_stage_stall_type &stall_rea
        }
    } else {
        assert( CACHE_UNDEFINED != inst.cache_op );
-       address_type pc = 0;
-       bool isCriticalWarp = true;
-       stall_cond = process_L1D_access_queue(m_L1D,inst,pc,isCriticalWarp);
+       stall_cond = process_L1D_access_queue(m_L1D,inst);
    }
    if( !inst.accessq_empty() ) 
        stall_cond = COAL_STALL;
