@@ -328,27 +328,6 @@ cacp_tag_array::~cacp_tag_array()
 
 cacp_tag_array::cacp_tag_array( cache_config &config,
                       int core_id,
-                      int type_id,
-                      cache_block_t* new_lines)
-    : m_config( config )
-{
-    int i;
-    m_critical_lines = new cache_block_t[CRITICAL_LINES];
-    for (i = 0; i < CRITICAL_LINES; i++) {
-        m_critical_lines[i] = new_lines[i];
-    }
-    m_lines = new cache_block_t[MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines() - CRITICAL_LINES];
-    for (i = CRITICAL_LINES; i < MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines(); i++) {
-        m_critical_lines[i] = new_lines[i];
-    }
-    // Signatures are 8 bit
-    CCBP = new signed[256];
-    SHiP = new signed[256];
-    init( core_id, type_id );
-}
-
-cacp_tag_array::cacp_tag_array( cache_config &config,
-                      int core_id,
                       int type_id )
     : m_config( config )
 {
@@ -486,7 +465,7 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
                 if (line.c_reuse == false && line.nc_reuse == true && idx >= CRITICAL_LINES) {
                     if(CCBP[line.signature] > -3) CCBP[line.signature]--;
                 } else if (line.c_reuse == false && line.nc_reuse == false) {
-                    SHiP[line.signature]−−;
+                    SHiP[line.signature]--;
                 }
             }
             line.allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );

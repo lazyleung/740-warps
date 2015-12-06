@@ -415,6 +415,7 @@ protected:
 
 class cacp_tag_array : public tag_array{
     cacp_tag_array(cache_config &config, int core_id, int type_id );
+    ~cacp_tag_array();
 
     enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, address_type pc );
     enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted, address_type pc );
@@ -436,7 +437,21 @@ class cacp_tag_array : public tag_array{
     signed *SHiP;
 
 protected:
+    cache_config &m_config;
     cache_block_t *m_critical_lines; /* nbanks x nset x assoc lines in total */
+
+    unsigned m_access;
+    unsigned m_miss;
+    unsigned m_pending_hit; // number of cache miss that hit a line that is allocated but not filled
+    unsigned m_res_fail;
+
+    // performance counters for calculating the amount of misses within a time window
+    unsigned m_prev_snapshot_access;
+    unsigned m_prev_snapshot_miss;
+    unsigned m_prev_snapshot_pending_hit;
+
+    int m_core_id; // which shader core is using this
+    int m_type_id; // what kind of cache is this (normal, texture, constant)
 };
 
 class mshr_table {
