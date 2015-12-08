@@ -218,10 +218,10 @@ void function_info::ptx_assemble()
       } else {
          if( pI->is_loop_start() ) {
             printf("\n\nFound Loop Start @ %u\n\n", PC);
-            m_loop_info[PC](LOOP_START);
+            m_loop_info[PC] = LOOP_START;
          } else if( pI->is_loop_end() ) {
             printf("\n\nFound Loop End   @ %u\n\n", PC);
-            m_loop_info[PC](LOOP_END);
+            m_loop_info[PC] = LOOP_END;
          }
 
          g_pc_to_finfo[PC] = this;

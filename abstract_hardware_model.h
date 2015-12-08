@@ -36,9 +36,12 @@ class kernel_info_t;
 #define MAX_CTA_PER_SHADER 32
 #define MAX_BARRIERS_PER_CTA 16
 
-#define LOOP_NONE 0
-#define LOOP_START 1
-#define LOOP_END 2
+enum loop_info_t {
+  LOOP_NONE = 0,
+  LOOP_START = 1,
+  LOOP_END = 2
+};
+typedef enum loop_info_t loop_info_type;
 
 enum _memory_space_t {
    undefined_space=0,
@@ -968,11 +971,11 @@ public:
     void print( FILE *fout ) const;
     unsigned get_uid() const { return m_uid; }
 
-    int get_loop_mark() const { return m_loop_mark; }
+    loop_info_type get_loop_mark() const { return m_loop_mark; }
 
 protected:
 
-    int m_loop_mark;
+    loop_info_type m_loop_mark;
     
     unsigned m_uid;
     bool m_empty;

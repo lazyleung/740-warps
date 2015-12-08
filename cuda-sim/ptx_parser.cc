@@ -73,7 +73,7 @@ int g_opcode = -1;
 std::list<operand_info> g_operands;
 std::list<int> g_options;
 std::list<int> g_scalar_type;
-int g_loop_mark;
+loop_info_type g_loop_mark;
 
 #define PTX_PARSE_DPRINTF(...) \
    if( g_debug_ir_generation ) { \
@@ -150,7 +150,7 @@ void init_instruction_state()
    g_opcode = -1;
    g_options.clear();
    g_return_var = operand_info();
-   g_loop_mark = 0;
+   g_loop_mark = LOOP_NONE;
    init_directive_state();
 }
 
@@ -957,7 +957,8 @@ void func_header_info_int(const char* a, int b) {} //intentional dummy function
 // 2 = End of loop
 
 void add_loop_start() {
-  g_loop_mark = 1;
+  PTX_PARSE_DPRINTF("add_loop_start");
+  g_loop_mark = LOOP_START;
   // ptx_instruction *i = new ptx_instruction( -1, 
   //                                           NULL, 
   //                                           0,
@@ -977,7 +978,8 @@ void add_loop_start() {
 }
 
 void add_loop_end() {
-  g_loop_mark = 2;
+  PTX_PARSE_DPRINTF("add_loop_end");
+  g_loop_mark = LOOP_END;
   // ptx_instruction *i = new ptx_instruction( -1, 
   //                                           NULL, 
   //                                           0,

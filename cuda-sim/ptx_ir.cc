@@ -1009,7 +1009,7 @@ ptx_instruction::ptx_instruction( int opcode,
                                   unsigned line,
                                   const char *source,
                                   const core_config *config,
-                                  int loop_mark ) : warp_inst_t(config)
+                                  loop_info_type loop_mark ) : warp_inst_t(config)
 {
    m_uid = ++g_num_ptx_inst_uid;
    m_PC = 0;
