@@ -148,6 +148,8 @@ breakaddr  TC; ptx_lval.int_value = BREAKADDR_OP; return OPCODE;
 
 <INITIAL,NOT_OPCODE,IN_INST,IN_FUNC_DECL>{
 
+\.loop_s TC; return LOOP_START;
+\.loop_e TC; return LOOP_END;
 \.align TC; return ALIGN_DIRECTIVE;
 \.branchtargets TC; return BRANCHTARGETS_DIRECTIVE;
 \.byte	TC; return BYTE_DIRECTIVE; /* not in PTX 2.1 */

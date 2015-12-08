@@ -73,6 +73,7 @@ int g_opcode = -1;
 std::list<operand_info> g_operands;
 std::list<int> g_options;
 std::list<int> g_scalar_type;
+int g_loop_mark;
 
 #define PTX_PARSE_DPRINTF(...) \
    if( g_debug_ir_generation ) { \
@@ -149,6 +150,7 @@ void init_instruction_state()
    g_opcode = -1;
    g_options.clear();
    g_return_var = operand_info();
+   g_loop_mark = 0;
    init_directive_state();
 }
 
@@ -280,7 +282,8 @@ void add_instruction()
                                              g_filename,
                                              ptx_lineno,
                                              linebuf,
-                                             g_shader_core_config );
+                                             g_shader_core_config,
+                                             g_loop_mark );
    g_instructions.push_back(i);
    g_inst_lookup[g_filename][ptx_lineno] = i;
    init_instruction_state();
@@ -947,3 +950,48 @@ void target_header3(char* a, char* b, char* c)
 void func_header(const char* a) {} //intentional dummy function
 void func_header_info(const char* a) {} //intentional dummy function
 void func_header_info_int(const char* a, int b) {} //intentional dummy function
+
+// loop_mark
+// 0 = Nothing
+// 1 = Start of loop
+// 2 = End of loop
+
+void add_loop_start() {
+  g_loop_mark = 1;
+  // ptx_instruction *i = new ptx_instruction( -1, 
+  //                                           NULL, 
+  //                                           0,
+  //                                           -1, 
+  //                                           NULL, 
+  //                                           g_operands,
+  //                                           g_return_var,
+  //                                           g_options, 
+  //                                           g_scalar_type,
+  //                                           undefined_space,
+  //                                           g_filename,
+  //                                           ptx_lineno,
+  //                                           linebuf,
+  //                                           g_shader_core_config,
+  //                                           g_loop_mark );
+  // g_instructions.push_back(i);
+}
+
+void add_loop_end() {
+  g_loop_mark = 2;
+  // ptx_instruction *i = new ptx_instruction( -1, 
+  //                                           NULL, 
+  //                                           0,
+  //                                           -1, 
+  //                                           NULL, 
+  //                                           g_operands,
+  //                                           g_return_var,
+  //                                           g_options, 
+  //                                           g_scalar_type,
+  //                                           undefined_space,
+  //                                           g_filename,
+  //                                           ptx_lineno,
+  //                                           linebuf,
+  //                                           g_shader_core_config,
+  //                                           g_loop_mark );
+  // g_instructions.push_back(i);
+}
