@@ -251,7 +251,7 @@ public:
     void update_criticality();
     void setCritical() { m_isCrticalWarp = true; }
     void notCritical() { m_isCrticalWarp = false; }
-    bool isCrticalWarp() { return m_isCrticalWarp; }
+    bool isCriticalWarp() { return m_isCrticalWarp; }
 
 
 private:
