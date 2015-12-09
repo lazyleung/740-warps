@@ -822,7 +822,7 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
 
         // Greedily execute until no more instructions available
         T greedy_value = *last_issued_from_input;
-        greedy_value->notCritical();
+        greedy_value.notCritical();
         result_list.push_back( greedy_value );
 
 
@@ -839,7 +839,7 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
 
         // Prevent greedy being pushed twice
         if ( oldest != greedy_value) {
-            oldest->notCritical();
+            oldest.notCritical();
             result_list.push_back( oldest );
         }
 
@@ -848,7 +848,7 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
         for ( unsigned count = 0; count < num_warps_to_add; ++count, ++iter ) {
             // Prevent greedy and oldest being pushed twice
             if ( *iter != greedy_value && *iter != oldest) {
-                *iter->notCritical();
+                *iter.notCritical();
                 result_list.push_back( *iter );
             }
         }
