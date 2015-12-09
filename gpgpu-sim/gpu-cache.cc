@@ -368,7 +368,14 @@ enum cache_request_status cacp_tag_array::probe(new_addr_type addr, unsigned &id
     // check for hit or pending hit
     for (unsigned way=0; way<m_config.m_assoc; way++) {
         unsigned index = set_index*m_config.m_assoc+way;
-        cache_block_t *line = &m_lines[index];
+        
+        cache_block_t *line;
+        if(idx >= CRITICAL_LINES) {
+            line = &m_lines[idx - CRITICAL_LINES];
+        } else {
+            line = &m_critical_lines[idx];
+        }
+        
         if (line->m_tag == tag) {
             if ( line->m_status == RESERVED ) {
                 idx = index;
