@@ -1336,6 +1336,17 @@ read_only_cache::access( new_addr_type addr,
     return cache_status;
 }
 
+enum cache_request_status
+read_only_cache::access( new_addr_type addr,
+                         mem_fetch *mf,
+                         unsigned time,
+                         std::list<cache_event> &events,
+                         address_type pc,
+                         bool isCriticalWarp )
+{
+    return access(addr, mf, time, events);
+}
+
 //! A general function that takes the result of a tag_array probe
 //  and performs the correspding functions based on the cache configuration
 //  The access fucntion calls this function
@@ -1402,6 +1413,17 @@ data_cache::access( new_addr_type addr,
     m_stats.inc_stats(mf->get_access_type(),
         m_stats.select_stats_status(probe_status, access_status));
     return access_status;
+}
+
+enum cache_request_status
+data_cache::access( new_addr_type addr,
+                    mem_fetch *mf,
+                    unsigned time,
+                    std::list<cache_event> &events,
+                    address_type pc,
+                    bool isCriticalWarp )
+{
+    return access(addr, mf, time, events);
 }
 
 /// This is meant to model the first level data cache in Fermi.
@@ -1675,6 +1697,17 @@ l2_cache::access( new_addr_type addr,
     return data_cache::access( addr, mf, time, events );
 }
 
+enum cache_request_status
+l2_cache::access( new_addr_type addr,
+                  mem_fetch *mf,
+                  unsigned time,
+                  std::list<cache_event> &events,
+                  address_type pc,
+                  bool isCriticalWarp )
+{
+    return access( addr, mf, time, events );
+}
+
 /// Access function for tex_cache
 /// return values: RESERVATION_FAIL if request could not be accepted
 /// otherwise returns HIT_RESERVED or MISS; NOTE: *never* returns HIT
@@ -1712,6 +1745,12 @@ enum cache_request_status tex_cache::access( new_addr_type addr, mem_fetch *mf,
     }
     m_stats.inc_stats(mf->get_access_type(), m_stats.select_stats_status(status, cache_status));
     return cache_status;
+}
+
+enum cache_request_status tex_cache::access( new_addr_type addr, mem_fetch *mf,
+    unsigned time, std::list<cache_event> &events, address_type pc, bool isCriticalWarp )
+{
+    return access(addr, mf, time, events);
 }
 
 void tex_cache::cycle(){
