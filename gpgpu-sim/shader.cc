@@ -848,7 +848,8 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
         for ( unsigned count = 0; count < num_warps_to_add; ++count, ++iter ) {
             // Prevent greedy and oldest being pushed twice
             if ( *iter != greedy_value && *iter != oldest) {
-                *iter->notCritical();
+                T temp = *iter;
+                temp->notCritical();
                 result_list.push_back( *iter );
             }
         }
