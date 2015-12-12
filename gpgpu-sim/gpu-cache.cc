@@ -1000,6 +1000,27 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time){
     m_bandwidth_management.use_fill_port(mf); 
 }
 
+void baseline_cache::fill(mem_fetch *mf, unsigned time, address_type pc){
+    extra_mf_fields_lookup::iterator e = m_extra_mf_fields.find(mf);
+    assert( e != m_extra_mf_fields.end() );
+    assert( e->second.m_valid );
+    mf->set_data_size( e->second.m_data_size );
+    if ( m_config.m_alloc_policy == ON_MISS )
+        m_cacp_tag_array->fill(e->second.m_cache_index,time,pc);
+    else if ( m_config.m_alloc_policy == ON_FILL )
+        m_cacp_tag_array->fill(e->second.m_block_addr,time,pc);
+    else abort();
+    bool has_atomic = false;
+    m_mshrs.mark_ready(e->second.m_block_addr, has_atomic);
+    if (has_atomic) {
+        assert(m_config.m_alloc_policy == ON_MISS);
+        cache_block_t &block = m_cacp_tag_array->get_block(e->second.m_cache_index);
+        block.m_status = MODIFIED; // mark line as dirty for atomic operation
+    }
+    m_extra_mf_fields.erase(mf);
+    m_bandwidth_management.use_fill_port(mf); 
+}
+
 /// Checks if mf is waiting to be filled by lower memory level
 bool baseline_cache::waiting_for_fill( mem_fetch *mf ){
     extra_mf_fields_lookup::iterator e = m_extra_mf_fields.find(mf);
@@ -1426,6 +1447,11 @@ data_cache::access( new_addr_type addr,
     return access(addr, mf, time, events);
 }
 
+void l1_cache::print(FILE *fp, unsigned &accesses, unsigned &misses) const{
+    fprintf( fp, "Cache %s:\t", m_name.c_str() );
+    m_cacp_tag_array->print(fp,accesses,misses);
+}
+
 /// This is meant to model the first level data cache in Fermi.
 /// It is write-evict (global) or write-back (local) at the
 /// granularity of individual blocks (Set by GPGPU-Sim configuration file)
@@ -1446,6 +1472,25 @@ l1_cache::access( new_addr_type addr,
         = m_cacp_tag_array->probe( block_addr, cache_index);
     enum cache_request_status access_status
         = process_tag_probe( wr, probe_status, addr, cache_index, mf, time, events, pc, isCriticalWarp );
+    m_stats.inc_stats(mf->get_access_type(),
+        m_stats.select_stats_status(probe_status, access_status));
+    return access_status;
+}
+
+enum cache_request_status
+l1_cache::access( new_addr_type addr,
+                  mem_fetch *mf,
+                  unsigned time,
+                  std::list<cache_event> &events )
+{
+    assert( mf->get_data_size() <= m_config.get_line_sz());
+    bool wr = mf->get_is_write();
+    new_addr_type block_addr = m_config.block_addr(addr);
+    unsigned cache_index = (unsigned)-1;
+    enum cache_request_status probe_status
+        = m_cacp_tag_array->probe( block_addr, cache_index);
+    enum cache_request_status access_status
+        = process_tag_probe( wr, probe_status, addr, cache_index, mf, time, events, 0, false );
     m_stats.inc_stats(mf->get_access_type(),
         m_stats.select_stats_status(probe_status, access_status));
     return access_status;

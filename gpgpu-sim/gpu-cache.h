@@ -690,6 +690,7 @@ public:
     void cycle();
     /// Interface for response from lower memory level (model bandwidth restictions in caller)
     void fill( mem_fetch *mf, unsigned time );
+    void fill( mem_fetch *mf, unsigned time, address_type pc );
     /// Checks if mf is waiting to be filled by lower memory level
     bool waiting_for_fill( mem_fetch *mf );
     /// Are any (accepted) accesses that had to wait for memory now ready? (does not include accesses that "HIT")
@@ -1103,6 +1104,8 @@ public:
                 std::list<cache_event> &events,
                 address_type pc,
                 bool isCriticalWarp );
+
+    void print(FILE *fp, unsigned &accesses, unsigned &misses) const;
 
 protected:
     l1_cache( const char *name,
