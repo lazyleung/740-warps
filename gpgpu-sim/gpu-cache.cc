@@ -1493,9 +1493,11 @@ l1_cache::process_tag_probe( bool wr,
     return access_status;
 }
 
-void l1_cache::print(FILE *fp, unsigned &accesses, unsigned &misses) const{
-    fprintf( fp, "Cache %s:\t", m_name.c_str() );
-    m_cacp_tag_array->print(fp,accesses,misses);
+/// Sends write request to lower level memory (write or writeback)
+void l1_cache::send_write_request(mem_fetch *mf, cache_event request, unsigned time, std::list<cache_event> &events){
+    events.push_back(request);
+    m_miss_queue.push_back(mf);
+    mf->set_status(m_miss_queue_status,time);
 }
 
 cache_request_status l1_cache::wr_hit_wb(new_addr_type addr, unsigned cache_index, mem_fetch *mf, unsigned time, std::list<cache_event> &events, enum cache_request_status status, address_type pc, bool isCriticalWarp ){

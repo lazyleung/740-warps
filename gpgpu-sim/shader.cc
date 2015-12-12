@@ -1709,8 +1709,7 @@ ldst_unit::ldst_unit( mem_fetch_interface *icnt,
                               get_shader_normal_cache_id(),
                               m_icnt,
                               m_mf_allocator,
-                              IN_L1D_MISS_QUEUE
-                              );
+                              IN_L1D_MISS_QUEUE );
     }
 }
 

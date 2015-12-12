@@ -1039,12 +1039,17 @@ protected:
 /// It is write-evict (global) or write-back (local) at
 /// the granularity of individual blocks
 /// (the policy used in fermi according to the CUDA manual)
-class l1_cache : public data_cache {
+class l1_cache : public baseline_cache {
 public:
-    l1_cache(const char *name, cache_config &config,
-            int core_id, int type_id, mem_fetch_interface *memport,
-            mem_fetch_allocator *mfcreator, enum mem_fetch_status status )
-            : data_cache(name,config,core_id,type_id,memport,mfcreator,status, L1_WR_ALLOC_R, L1_WRBK_ACC){}
+    l1_cache( const char *name, cache_config &config,
+                int core_id, int type_id, mem_fetch_interface *memport,
+                mem_fetch_allocator *mfcreator, enum mem_fetch_status status )
+                : baseline_cache(name,config,core_id,type_id,memport,status)
+    {
+        init( mfcreator );
+        m_wr_alloc_type = L1_WR_ALLOC_R;
+        m_wrbk_type = L1_WRBK_ACC;
+    }
 
     virtual ~l1_cache(){}
 
@@ -1099,6 +1104,25 @@ public:
                 address_type pc,
                 bool isCriticalWarp );
 
+protected:
+    l1_cache( const char *name,
+                cache_config &config,
+                int core_id,
+                int type_id,
+                mem_fetch_interface *memport,
+                mem_fetch_allocator *mfcreator,
+                enum mem_fetch_status status,
+                tag_array* new_tag_array)
+    : baseline_cache(name, config, core_id, type_id, memport,status, new_tag_array)
+    {
+        init( mfcreator );
+        m_wr_alloc_type = L1_WR_ALLOC_R;
+        m_wrbk_type = L1_WRBK_ACC;
+    }
+
+    mem_access_type m_wr_alloc_type; // Specifies type of write allocate request (e.g., L1 or L2)
+    mem_access_type m_wrbk_type; // Specifies type of writeback request (e.g., L1 or L2)
+
     enum cache_request_status 
     process_tag_probe( bool wr,
                        enum cache_request_status probe_status,
@@ -1110,10 +1134,14 @@ public:
                        address_type pc,
                        bool isCriticalWarp );
 
-    void print(FILE *fp, unsigned &accesses, unsigned &misses) const;
-
-protected:
     mem_fetch_allocator *m_memfetch_creator;
+
+    // Functions for data cache access
+    /// Sends write request to lower level memory (write or writeback)
+    void send_write_request( mem_fetch *mf,
+                             cache_event request,
+                             unsigned time,
+                             std::list<cache_event> &events);
 
     // Member Function pointers - Set by configuration options
     // to the functions below each grouping
