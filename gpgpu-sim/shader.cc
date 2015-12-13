@@ -966,9 +966,14 @@ void daws_scheduler::order_warps() {
 		std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
 		while (it != m_next_cycle_prioritized_warps.end()) {
 			unsigned warp_id = (*it)->get_warp_id();
-			if (cache_footprint_pred_table[warp_id].pc_loop && 
-					!cache_footprint_pred_table[warp_id].n_active)
-				m_next_cycle_prioritized_warps.erase(it);
+			struct cache_footprint footprint = cache_footprint_pred_table[warp_id];
+			if (footprint.pc_loop && !footprint.active) {
+				warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
+				if (cache_footprint_pred_table[warp_id].active)
+					i++;
+				else
+					m_next_cycle_prioritized_warps.erase(it);
+			}
 			else
 				it++;
 		}

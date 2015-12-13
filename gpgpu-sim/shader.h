@@ -475,6 +475,7 @@ private:
 		unsigned pc_loop;
 		unsigned prediction;
 		unsigned n_active;
+		bool active;
 	};
 	std::vector<struct cache_footprint> cache_footprint_pred_table;
 
