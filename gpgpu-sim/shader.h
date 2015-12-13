@@ -295,6 +295,7 @@ enum concrete_scheduler
     CONCRETE_SCHEDULER_GTO,
     CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE,
     CONCRETE_SCHEDULER_WARP_LIMITING,
+	CONCRETE_SCHEDULER_DAWS,
     NUM_CONCRETE_SCHEDULERS
 };
 
@@ -422,6 +423,82 @@ public:
 
 };
 
+class daws_scheduler : public gto_scheduler {
+public:
+	daws_scheduler ( shader_core_stats* stats, shader_core_ctx* shader,
+                    Scoreboard* scoreboard, simt_stack** simt,
+                    std::vector<shd_warp_t>* warp,
+                    register_set* sp_out,
+                    register_set* sfu_out,
+                    register_set* mem_out,
+                    int id )
+	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ) {
+		static_load_class_table.resize(32);
+		cache_footprint_pred_table.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
+		sampling_warp_table.resize(16);
+		memory_divergence_detector.resize(32);
+		for (unsigned i = 0; i < 32; i++)
+			memory_divergence_detector[i].div_count = 1;
+		intraloop_rep_detector.resize(8);
+		victim_tag_array.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
+		for (unsigned i = 0; i < victim_tag_array.size(); i++) {
+			victim_tag_array[i].resize(2);
+			victim_tag_array[i][0].resize(8);
+			victim_tag_array[i][1].resize(8);
+		}
+	}
+
+	virtual ~daws_scheduler () {}
+	virtual void order_warps ();
+
+	void check_miss(unsigned warp_id, unsigned pc);
+	void check_hit(unsigned warp_id, unsigned pc);
+	void check_mem_div(unsigned pc, unsigned n_active, unsigned n_access);
+	void check_loop_rep(unsigned warp_id, unsigned pc, unsigned tag);
+	void set_sampling_warp(unsigned warp_id, pc_loop);
+	void clear_sampling_warp(unsigned warp_id);
+
+private:
+	struct load_info {
+		unsigned pc_loop;
+		unsigned pc_load;
+		unsigned rep_id;
+		bool diverged;
+		bool valid;
+	};
+	std::vector<struct static_load_info> static_load_class_table;
+
+	struct cache_footprint {
+		unsigned pc_loop;
+		unsigned prediction;
+		bool valid;
+	};
+	std::vector<struct cache_footprint> cache_footprint_pred_table;
+
+	struct loop_sample {
+		unsigned w_id;
+		unsigned pc_loop;
+		bool locality;
+		bool valid;
+	};
+	std::vector<struct loop_sample> sampling_warp_table;
+
+	struct load_divergence {
+		unsigned pc_load;
+		unsigned div_count;
+		bool valid;
+	};
+	std::vector<struct load_divergence> memory_divergence_detector;
+
+	struct loop_load_rep {
+		unsigned pc_load;
+		unsigned rep_id;
+		bool valid;
+	};
+	std::vector<std::deque<struct loop_load_rep>> intraloop_rep_detector;
+
+	std::vector<std::vector<std::deque<signed>>> victim_tag_array;
+}
 
 class two_level_active_scheduler : public scheduler_unit {
 public:
@@ -1735,6 +1812,9 @@ public:
 
 	 void inc_simt_to_mem(unsigned n_flits){ m_stats->n_simt_to_mem[m_sid] += n_flits; }
 	 bool check_if_non_released_reduction_barrier(warp_inst_t &inst);
+
+	// DAWS stuff
+	unsigned total_footprint;
 
 	private:
 	 unsigned inactive_lanes_accesses_sfu(unsigned active_count,double latency){
