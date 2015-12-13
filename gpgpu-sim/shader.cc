@@ -702,6 +702,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 
 void shader_core_ctx::issue(){
     //really is issue;
+	m_cur_cache_load = 0;
     for (unsigned i = 0; i < schedulers.size(); i++) {
         schedulers[i]->cycle();
     }
@@ -958,6 +959,25 @@ void gto_scheduler::order_warps()
                        m_supervised_warps.size(),
                        ORDERING_GREEDY_THEN_PRIORITY_FUNC,
                        scheduler_unit::sort_warps_by_oldest_dynamic_id );
+}
+
+void daws_scheduler::order_warps() {
+	unsigned tot_load, load, warp_id;
+	bool diverged;
+
+	gto_scheduler::order_warps();
+	tot_load = m_shader->get_cur_cache_load();
+	for (std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
+			it != m_next_cycle_prioritized_warps.end(); it++) {
+		warp_id = (*it)->get_warp_id();
+		if (cache_footprint_pred_table[warp_id].pc_loop) {
+			
+			if (cache_footprint_pred_table[warp_id].prediction > 1)
+				load = 
+		}
+		else 
+			continue;
+	}
 }
 
 void

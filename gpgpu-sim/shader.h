@@ -446,6 +446,11 @@ public:
 			victim_tag_array[i][0].resize(8);
 			victim_tag_array[i][1].resize(8);
 		}
+		warp_loop_pc_array.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
+
+		unsigned n_sets, assoc;
+		sscanf(shader->get_config()->m_L1D_config, "%u:%u:%u,", &n_sets, &block_size, &assoc);
+		cache_size = (unsigned)(assoc_factor * (float)(n_sets * assoc));
 	}
 
 	virtual ~daws_scheduler () {}
@@ -464,14 +469,12 @@ private:
 		unsigned pc_load;
 		unsigned rep_id;
 		bool diverged;
-		bool valid;
 	};
 	std::vector<struct static_load_info> static_load_class_table;
 
 	struct cache_footprint {
 		unsigned pc_loop;
 		unsigned prediction;
-		bool valid;
 	};
 	std::vector<struct cache_footprint> cache_footprint_pred_table;
 
@@ -479,25 +482,25 @@ private:
 		unsigned w_id;
 		unsigned pc_loop;
 		bool locality;
-		bool valid;
 	};
 	std::vector<struct loop_sample> sampling_warp_table;
 
 	struct load_divergence {
 		unsigned pc_load;
 		unsigned div_count;
-		bool valid;
 	};
 	std::vector<struct load_divergence> memory_divergence_detector;
 
 	struct loop_load_rep {
 		unsigned pc_load;
 		unsigned rep_id;
-		bool valid;
 	};
 	std::vector<std::deque<struct loop_load_rep>> intraloop_rep_detector;
 
 	std::vector<std::vector<std::deque<signed>>> victim_tag_array;
+
+	const float assoc_factor = 0.6;
+	unsigned cache_size, block_size;
 }
 
 class two_level_active_scheduler : public scheduler_unit {
@@ -1814,9 +1817,21 @@ public:
 	 bool check_if_non_released_reduction_barrier(warp_inst_t &inst);
 
 	// DAWS stuff
-	unsigned total_footprint;
+	unsigned get_cur_cache_load() {
+		return m_cur_cache_load;
+	}
+	void set_cur_cache_load(unsigned new_load) {
+		m_cur_cache_load += new_load;
+	}
+	unsigned get_max_cache_load() {
+		return m_max_cache_load;
+	}
 
 	private:
+	// DAWS stuff
+	unsigned m_max_cache_load;
+	unsigned m_cur_cache_load;
+
 	 unsigned inactive_lanes_accesses_sfu(unsigned active_count,double latency){
       return  ( ((32-active_count)>>1)*latency) + ( ((32-active_count)>>3)*latency) + ( ((32-active_count)>>3)*latency);
 	 }
