@@ -191,6 +191,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %token  CV_OPTION;
 %token  WB_OPTION;
 %token  WT_OPTION;
+%token	LOOP_START_DIRECTIVE;
+%token	LOOP_END_DIRECTIVE;
 
 %type <int_value> function_decl_header
 %type <ptr_value> function_decl
@@ -263,7 +265,9 @@ ptr_align_spec: ALIGN_DIRECTIVE INT_OPERAND
 
 statement_block: LEFT_BRACE statement_list RIGHT_BRACE 
 
-statement_list: directive_statement { add_directive(); }
+statement_list: LOOP_START_DIRECTIVE { add_loop_start(); }
+	| LOOP_END_DIRECTIVE { add_loop_end(); }
+	| directive_statement { add_directive(); }
 	| instruction_statement { add_instruction(); }
 	| statement_list directive_statement { add_directive(); }
 	| statement_list instruction_statement { add_instruction(); }

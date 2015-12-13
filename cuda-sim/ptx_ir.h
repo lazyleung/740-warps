@@ -855,7 +855,11 @@ public:
                     const char *file, 
                     unsigned line,
                     const char *source,
-                    const core_config *config );
+                    const core_config *config,
+                    loop_info_type loop_mark );
+
+   bool is_loop_start() const { return m_loop_mark == LOOP_START; }
+   bool is_loop_end() const { return m_loop_mark == LOOP_END; }
 
    void print_insn() const;
    virtual void print_insn( FILE *fp ) const;
@@ -1288,6 +1292,8 @@ private:
 
    static std::vector<ptx_instruction*> s_g_pc_to_insn; // a direct mapping from PC to instruction
    static unsigned sm_next_uid;
+
+   std::map<unsigned,loop_info_type> m_loop_info;
 };
 
 class arg_buffer_t {

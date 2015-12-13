@@ -1008,7 +1008,8 @@ ptx_instruction::ptx_instruction( int opcode,
                                   const char *file, 
                                   unsigned line,
                                   const char *source,
-                                  const core_config *config ) : warp_inst_t(config)
+                                  const core_config *config,
+                                  loop_info_type loop_mark ) : warp_inst_t(config)
 {
    m_uid = ++g_num_ptx_inst_uid;
    m_PC = 0;
@@ -1038,6 +1039,7 @@ ptx_instruction::ptx_instruction( int opcode,
    m_atomic_spec = 0;
    m_membar_level = 0;
    m_inst_size = 8; // bytes
+   m_loop_mark = loop_mark;
 
    std::list<int>::const_iterator i;
    unsigned n=1;
