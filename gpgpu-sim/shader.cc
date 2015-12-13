@@ -702,7 +702,6 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 
 void shader_core_ctx::issue(){
     //really is issue;
-	m_cur_cache_load = 0;
     for (unsigned i = 0; i < schedulers.size(); i++) {
         schedulers[i]->cycle();
     }
@@ -962,22 +961,38 @@ void gto_scheduler::order_warps()
 }
 
 void daws_scheduler::order_warps() {
-	unsigned tot_load, load, warp_id;
-	bool diverged;
-
 	gto_scheduler::order_warps();
-	tot_load = m_shader->get_cur_cache_load();
-	for (std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
-			it != m_next_cycle_prioritized_warps.end(); it++) {
-		warp_id = (*it)->get_warp_id();
-		if (cache_footprint_pred_table[warp_id].pc_loop) {
-			
-			if (cache_footprint_pred_table[warp_id].prediction > 1)
-				load = 
+	if (m_shader->get_cur_cache_load() <= cache_size) {
+		std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
+		while (it != m_next_cycle_prioritized_warps.end()) {
+			unsigned warp_id = (*it)->get_warp_id();
+			if (cache_footprint_pred_table[warp_id].pc_loop && 
+					!cache_footprint_pred_table[warp_id].n_active)
+				m_next_cycle_prioritized_warps.erase(it);
+			else
+				it++;
 		}
-		else 
-			continue;
 	}
+}
+
+void daws_scheduler::cache_miss(unsigned warp_id, unsigned pc) {
+
+}
+
+void daws_scheduler::cache_hit(unsigned warp_id, unsigned pc) {
+
+}
+
+void daws_scheduler::check_load(unsigned warp_id, unsigned pc, unsigned tag, unsigned n_active, unsigned n_access) {
+
+}
+
+void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc, unsigned n_active) {
+
+}
+
+void daws_scheduler::warp_exit(unsigned warp_id, unsigned n_active) {
+
 }
 
 void

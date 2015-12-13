@@ -456,12 +456,11 @@ public:
 	virtual ~daws_scheduler () {}
 	virtual void order_warps ();
 
-	void check_miss(unsigned warp_id, unsigned pc);
-	void check_hit(unsigned warp_id, unsigned pc);
-	void check_mem_div(unsigned pc, unsigned n_active, unsigned n_access);
-	void check_loop_rep(unsigned warp_id, unsigned pc, unsigned tag);
-	void set_sampling_warp(unsigned warp_id, pc_loop);
-	void clear_sampling_warp(unsigned warp_id);
+	void cache_miss(unsigned warp_id, unsigned pc);
+	void cache_hit(unsigned warp_id, unsigned pc);
+	void check_load(unsigned warp_id, unsigned pc, unsigned tag, unsigned n_active, unsigned n_access);
+	void warp_enter(unsigned warp_id, unsigned pc, unsigned n_active);
+	void warp_exit(unsigned warp_id, unsigned n_active);
 
 private:
 	struct load_info {
@@ -470,11 +469,12 @@ private:
 		unsigned rep_id;
 		bool diverged;
 	};
-	std::vector<struct static_load_info> static_load_class_table;
+	std::deque<struct static_load_info> static_load_class_table;
 
 	struct cache_footprint {
 		unsigned pc_loop;
 		unsigned prediction;
+		unsigned n_active;
 	};
 	std::vector<struct cache_footprint> cache_footprint_pred_table;
 
