@@ -734,7 +734,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     }else if( next_inst->op == MEMORY_BARRIER_OP ){
         m_warp[warp_id].set_membar();
 		for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
-			if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
+			if ((*it)->is_type(CONCRETE_SCHEDULER_PRO)) {
 				pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 				ps->inc_barrier_op(m_warp[warp_id].get_cta_id());
 			}
