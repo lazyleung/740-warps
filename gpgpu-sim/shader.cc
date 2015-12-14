@@ -1141,7 +1141,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 }
 
 void daws_scheduler::warp_exit(unsigned warp_id, unsigned n_active) {
-	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load - cache_footprint_pred_table[warp_id].prediction);
+	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_id].prediction);
 
 	// check if warp still has threads in loop
 	if (n_active < cache_footprint_pred_table[warp_id].n_active) {
