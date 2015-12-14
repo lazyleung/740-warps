@@ -1069,7 +1069,7 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 		unsigned loc_tag = (addr / (8 * block_size)) & 7;
 		unsigned pc_search = 0;
 		unsigned rep_id = 0;
-		for (auto it = intraloop_rep_detector[loc_tag].begin(); it != intraloop_rep_detector.end(); it++) {
+		for (auto it = intraloop_rep_detector[loc_tag].begin(); it != intraloop_rep_detector[loc_tag].end(); it++) {
 			if (it->tag == tag) {
 				pc_search = (*it).pc_load;
 				intraloop_rep_detector[loc_tag].erase(it);
