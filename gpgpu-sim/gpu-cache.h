@@ -102,6 +102,21 @@ struct cache_block_t {
     }
     void fill( unsigned time )
     {
+        // printf("            FILL @ %u\n", time);
+        // switch (m_status) {
+        //     case INVALID:
+        //         printf("            INVALID\n");
+        //         break;
+        //     case RESERVED:
+        //         printf("            RESERVED\n");
+        //         break;
+        //     case VALID:
+        //         printf("            VALID\n");
+        //         break;
+        //     case MODIFIED:
+        //         printf("            MODIFIED\n");
+        //         break;
+        // }
         assert( m_status == RESERVED );
         m_status=VALID;
         m_fill_time=time;
@@ -429,15 +444,15 @@ public:
     enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, cache_block_t &evicted, address_type pc, bool isCriticalWarp );
 
     void fill( new_addr_type addr, unsigned time, address_type pc );
-    void fill( unsigned idx, unsigned time);
+    void fill( unsigned idx, unsigned time );
 
     unsigned size() const { return m_config.get_num_lines();}
     cache_block_t &get_block(unsigned idx) { 
         if(idx >= CRITICAL_LINES) {
             idx = idx - CRITICAL_LINES;
-            return m_critical_lines[idx];
-        } else {
             return m_lines[idx];
+        } else {
+            return m_critical_lines[idx];
         }
     }
 
@@ -690,7 +705,7 @@ public:
     void cycle();
     /// Interface for response from lower memory level (model bandwidth restictions in caller)
     void fill( mem_fetch *mf, unsigned time );
-    void fill( mem_fetch *mf, unsigned time, address_type pc );
+    void fill_l1d( mem_fetch *mf, unsigned time, address_type pc );
     /// Checks if mf is waiting to be filled by lower memory level
     bool waiting_for_fill( mem_fetch *mf );
     /// Are any (accepted) accesses that had to wait for memory now ready? (does not include accesses that "HIT")

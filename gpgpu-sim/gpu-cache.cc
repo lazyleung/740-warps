@@ -263,6 +263,7 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
 
 void tag_array::fill( new_addr_type addr, unsigned time )
 {
+    printf("    FILL TAG ON_FILL\n");
     assert( m_config.m_alloc_policy == ON_FILL );
     unsigned idx;
     enum cache_request_status status = probe(addr,idx);
@@ -274,6 +275,8 @@ void tag_array::fill( new_addr_type addr, unsigned time )
 void tag_array::fill( unsigned index, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_MISS );
+    printf("    FILL TAG ON_MISS\n");
+    printf("        FILL %d\n", index);
     m_lines[index].fill(time);
 }
 
@@ -331,9 +334,10 @@ cacp_tag_array::cacp_tag_array( cache_config &config,
                       int type_id )
     : m_config( config )
 {
-    tag_array(config, core_id, type_id );
     m_critical_lines = new cache_block_t[CRITICAL_LINES];
     m_lines = new cache_block_t[MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines() - CRITICAL_LINES];
+    //printf("\ncacp_tag_array size %u\n", CRITICAL_LINES);
+    //printf("\ncacp_tag_array size %u\n", MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines() - CRITICAL_LINES);
     // Signatures are 8 bit
     CCBP = new signed[256];
     SHCT = new signed[256];
@@ -370,10 +374,10 @@ enum cache_request_status cacp_tag_array::probe(new_addr_type addr, unsigned &id
         unsigned index = set_index*m_config.m_assoc+way;
         
         cache_block_t *line;
-        if(idx >= CRITICAL_LINES) {
-            line = &m_lines[idx - CRITICAL_LINES];
+        if(index >= CRITICAL_LINES) {
+            line = &m_lines[index - CRITICAL_LINES];
         } else {
-            line = &m_critical_lines[idx];
+            line = &m_critical_lines[index];
         }
         
         if (line->m_tag == tag) {
@@ -443,10 +447,10 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
     bool inCritical;
     if(idx >= CRITICAL_LINES) {
         index = idx - CRITICAL_LINES;
-        inCritical = true;
+        inCritical = false;
     } else {
         index = idx;
-        inCritical = false;
+        inCritical = true;
     }
 
     switch (status) {
@@ -489,18 +493,18 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
                 if( m_critical_lines[index].m_status == MODIFIED ) {
                     wb = true;
                     evicted = m_critical_lines[index];
-                    if (m_critical_lines[index].c_reuse == false && m_critical_lines[index].nc_reuse == true && idx >= CRITICAL_LINES) {
+                    if (m_critical_lines[index].c_reuse == false && m_critical_lines[index].nc_reuse == true && idx < CRITICAL_LINES) {
                         if(CCBP[m_critical_lines[index].signature] > -3) CCBP[m_critical_lines[index].signature]--;
                     } else if (m_critical_lines[index].c_reuse == false && m_critical_lines[index].nc_reuse == false) {
                         SHCT[m_critical_lines[index].signature]--;
                     }
                 }
-                m_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
+                m_critical_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
             } else {
                 if( m_lines[index].m_status == MODIFIED ) {
                     wb = true;
                     evicted = m_lines[index];
-                    if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == true && idx >= CRITICAL_LINES) {
+                    if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == true && idx < CRITICAL_LINES) {
                         if(CCBP[m_lines[index].signature] > -3) CCBP[m_lines[index].signature]--;
                     } else if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == false) {
                         SHCT[m_lines[index].signature]--;
@@ -525,18 +529,19 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
 void cacp_tag_array::fill( new_addr_type addr, unsigned time, address_type pc )
 {
     assert( m_config.m_alloc_policy == ON_FILL );
+    //printf("    FILL ON_FILL\n");
     unsigned index;
     enum cache_request_status status = probe(addr,index);
     assert(status==MISS); // MSHR should have prevented redundant memory request
     if(index >= CRITICAL_LINES) {
         index = index - CRITICAL_LINES;
-        m_critical_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc);
-        m_critical_lines[index].fill(time);
-        promotion(m_critical_lines[index]);
-    } else {
         m_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc);
         m_lines[index].fill(time);
         promotion(m_lines[index]);
+    } else {
+        m_critical_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc);
+        m_critical_lines[index].fill(time);
+        promotion(m_critical_lines[index]);
     }
     
 }
@@ -544,13 +549,14 @@ void cacp_tag_array::fill( new_addr_type addr, unsigned time, address_type pc )
 void cacp_tag_array::fill( unsigned index, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_MISS );
+    //printf("    FILL ON_MISS\n");
     if(index >= CRITICAL_LINES) {
         index = index - CRITICAL_LINES;
-        m_critical_lines[index].fill(time);
-        promotion(m_critical_lines[index]);
-    } else {
         m_lines[index].fill(time);
         promotion(m_lines[index]);
+    } else {
+        m_critical_lines[index].fill(time);
+        promotion(m_critical_lines[index]);
     }
 }
 
@@ -560,9 +566,9 @@ void cacp_tag_array::flush()
         unsigned index = i;
         if(index >= CRITICAL_LINES) {
             index = index - CRITICAL_LINES;
-            m_critical_lines[index].m_status = INVALID;
-        } else {
             m_lines[index].m_status = INVALID;
+        } else {
+            m_critical_lines[index].m_status = INVALID;
         }
     }
 }
@@ -1000,13 +1006,13 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time){
     m_bandwidth_management.use_fill_port(mf); 
 }
 
-void baseline_cache::fill(mem_fetch *mf, unsigned time, address_type pc){
+void baseline_cache::fill_l1d(mem_fetch *mf, unsigned time, address_type pc){
     extra_mf_fields_lookup::iterator e = m_extra_mf_fields.find(mf);
     assert( e != m_extra_mf_fields.end() );
     assert( e->second.m_valid );
     mf->set_data_size( e->second.m_data_size );
     if ( m_config.m_alloc_policy == ON_MISS )
-        m_cacp_tag_array->fill(e->second.m_cache_index,time,pc);
+        m_cacp_tag_array->fill(e->second.m_cache_index,time);
     else if ( m_config.m_alloc_policy == ON_FILL )
         m_cacp_tag_array->fill(e->second.m_block_addr,time,pc);
     else abort();
@@ -1468,10 +1474,13 @@ l1_cache::access( new_addr_type addr,
     bool wr = mf->get_is_write();
     new_addr_type block_addr = m_config.block_addr(addr);
     unsigned cache_index = (unsigned)-1;
+    //printf("    l1_cache probe\n");
     enum cache_request_status probe_status
         = m_cacp_tag_array->probe( block_addr, cache_index);
+    //printf("    l1_cache probed\n");
     enum cache_request_status access_status
         = process_tag_probe( wr, probe_status, addr, cache_index, mf, time, events, pc, isCriticalWarp );
+    //printf("    l1_cache probe proccessed\n");
     m_stats.inc_stats(mf->get_access_type(),
         m_stats.select_stats_status(probe_status, access_status));
     return access_status;
@@ -1684,13 +1693,12 @@ l1_cache::rd_hit_base( new_addr_type addr,
                          bool isCriticalWarp )
 {
     new_addr_type block_addr = m_config.block_addr(addr);
-    m_tag_array->access(block_addr,time,cache_index);
     m_cacp_tag_array->access(block_addr,time,cache_index, pc, isCriticalWarp);
     // Atomics treated as global read/write requests - Perform read, mark line as
     // MODIFIED
     if(mf->isatomic()){ 
         assert(mf->get_access_type() == GLOBAL_ACC_R);
-        cache_block_t &block = m_tag_array->get_block(cache_index);
+        cache_block_t &block = m_cacp_tag_array->get_block(cache_index);
         block.m_status = MODIFIED;  // mark line as dirty
     }
     return HIT;
