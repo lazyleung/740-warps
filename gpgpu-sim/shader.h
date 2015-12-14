@@ -459,7 +459,7 @@ public:
 
 		block_size = m_L1D_config.get_line_sz();
 		assoc = m_L1D_config.get_assoc();
-		sets = m_L1D_config.get_nsets();
+		sets = m_L1D_config.get_nset();
 		assoc_factor = 0.6;
 		cache_size = (unsigned)(assoc_factor * (float)(sets * assoc));
 		next_rep_id = 1;
