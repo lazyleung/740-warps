@@ -228,6 +228,10 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
         schedulers[i%m_config->gpgpu_num_sched_per_core]->add_supervised_warp_id(i);
     }
     for ( int i = 0; i < m_config->gpgpu_num_sched_per_core; ++i ) {
+		if (schedulers[i]->is_type(CONCRETE_SCHEDULER_DAWS)) {
+			daws_scheduler* daws = dynamic_cast<daws_scheduler*>(schedulers[i]);
+			daws->init(m_config->max_warps_per_shader, m_config->gpgpu_num_sched_per_core, m_config->m_L1D_config);
+		}
         schedulers[i]->done_adding_supervised_warps();
     }
     
@@ -739,7 +743,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 void shader_core_ctx::issue(){
     //really is issue;
     for (unsigned i = 0; i < schedulers.size(); i++) {
-        schedulers[i]->cycle(&(schedulers[i]));
+        schedulers[i]->cycle();
     }
 }
 
@@ -835,7 +839,7 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
     }
 }
 
-void scheduler_unit::cycle(scheduler_unit* current)
+void scheduler_unit::cycle()
 {
     SCHED_DPRINTF( "scheduler_unit::cycle()\n" );
     bool valid_inst = false;  // there was one warp with a valid instruction to issue (didn't require flush due to control hazard)
@@ -883,7 +887,7 @@ void scheduler_unit::cycle(scheduler_unit* current)
                         assert( warp(warp_id).inst_in_pipeline() );
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
-                                m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id,current,pc);
+                                m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id,this,pc);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
@@ -893,13 +897,13 @@ void scheduler_unit::cycle(scheduler_unit* current)
                             bool sfu_pipe_avail = m_sfu_out->has_free();
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
-                                m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id,current,pc);
+                                m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id,this,pc);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
-                                    m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id,current,pc);
+                                    m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id,this,pc);
                                     issued++;
                                     issued_inst=true;
                                     warp_inst_issued = true;
@@ -1064,12 +1068,13 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 
 		// get intra-loop repitition information
 		unsigned long long tag = addr / (block_size * sets);
+		unsigned loc_tag = (addr / (8 * block_size)) & 7;
 		unsigned pc_search = 0;
 		unsigned rep_id = 0;
-		for (auto it = intraloop_rep_detector[warp_id].begin(); it != intraloop_rep_detector.end(); it++) {
+		for (auto it = intraloop_rep_detector[loc_tag].begin(); it != intraloop_rep_detector.end(); it++) {
 			if (it->tag == tag) {
 				pc_search = (*it).pc_load;
-				intraloop_rep_detector[warp_id].erase(it);
+				intraloop_rep_detector[loc_tag].erase(it);
 				std::unordered_map<unsigned, struct load_info>::iterator stat_it = 
 					static_load_class_table.find(pc_search);
 				assert (stat_it != static_load_class_table.end());
@@ -1083,14 +1088,15 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 			}
 		}
 		if (!pc_search) 
-			intraloop_rep_detector[warp_id].pop_back();
-		intraloop_rep_detector[warp_id].push_front((struct loop_load_rep){pc_load, tag});
+			intraloop_rep_detector[loc_tag].pop_back();
+		intraloop_rep_detector[loc_tag].push_front((struct loop_load_rep){tag, warp_id, pc_load});
 
 		// check static classification table for entry
 		std::unordered_map<unsigned, struct load_info>::iterator stat_it = 
 			static_load_class_table.find(pc_load);
 		if (stat_it != static_load_class_table.end()) {
-			(*stat_it).rep_id = rep_id;
+			if (!(*stat_it).rep_id)
+				(*stat_it).rep_id = rep_id;
 			(*stat_it).diverged = *div_iter > 1;
 		}
 		else {
@@ -1113,7 +1119,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 				else
 					load += n_active > 1 ? 2 : 1;
 				if ((*it).rep_id)
-					act_rep_ids.insert((*it).rep_Id);
+					act_rep_ids.insert((*it).rep_id);
 			}
 		}
 	}

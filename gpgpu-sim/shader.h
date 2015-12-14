@@ -325,8 +325,7 @@ public:
     // The core scheduler cycle method is meant to be common between
     // all the derived schedulers.  The scheduler's behaviour can be
     // modified by changing the contents of the m_next_cycle_prioritized_warps list.
-    void cycle(scheduler_unit* current);
-	// DAWS hackery
+    void cycle();
 
     // These are some common ordering fucntions that the
     // higher order schedulers can take advantage of
@@ -442,18 +441,23 @@ public:
                     register_set* mem_out,
                     int id,
 					concrete_scheduler type )
-	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {
-		cache_footprint_pred_table.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
+	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {}
+
+	void init(unsigned max_warps, unsigned max_sched, char* m_L1D_config) {
+		cache_footprint_pred_table.resize(max_warps / max_sched);
 		sampling_warp_table.resize(16);
 		intraloop_rep_detector.resize(8);
-		victim_tag_array.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
+		for (usigned i = 0; i < intraloop_rep_detector.size(); i++) {
+			intraloop_rep_detector[i].resize(8);
+		}
+		victim_tag_array.resize(max_warps / max_sched);
 		for (unsigned i = 0; i < victim_tag_array.size(); i++) {
 			victim_tag_array[i].resize(2);
 			victim_tag_array[i][0].resize(8, -1);
 			victim_tag_array[i][1].resize(8, -1);
 		}
 
-		sscanf(shader->get_config()->m_L1D_config, "%u:%u:%u,", &sets, &block_size, &assoc);
+		sscanf(m_L1D_config, "%u:%u:%u,", &sets, &block_size, &assoc);
 		assoc_factor = 0.6;
 		cache_size = (unsigned)(assoc_factor * (float)(sets * assoc));
 		next_rep_id = 1;
@@ -498,6 +502,7 @@ private:
 
 	struct loop_load_rep {
 		unsigned long long tag;
+		unsigned warp_id;
 		unsigned pc_load;
 	};
 	std::vector<std::deque<struct loop_load_rep>> intraloop_rep_detector;
