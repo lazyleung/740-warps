@@ -1093,12 +1093,12 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 		if (stat_it != static_load_class_table.end()) {
 			if (!(*stat_it).second.rep_id)
 				(*stat_it).second.rep_id = rep_id;
-			(*stat_it).second.diverged = *div_iter > 1;
+			(*stat_it).second.diverged = memory_div_detector[pc_load] > 1;
 		}
 		else {
 			unsigned pc_loop = sampling_warp_table[warp_id].pc_loop;
-			static_load_class_table.insert(
-				{pc_load, (struct static_load_class_table){pc_loop, rep_id, memory_div_detector[pc_load] > 1}});
+			static_load_class_table.insert({pc_load, 
+				(struct load_info){pc_loop, rep_id, memory_div_detector[pc_load] > 1}});
 		}
 	}
 }
