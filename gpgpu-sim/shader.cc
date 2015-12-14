@@ -646,7 +646,7 @@ void shader_core_ctx::fetch()
                 if( did_exit ) {
                     m_warp[warp_id].set_done_exit();
 					for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
-						if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
+						if ((*it)->is_type(CONCRETE_SCHEDULER_PRO)) {
 							pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 							ps->inc_warp_exit(m_warp[warp_id].get_cta_id());
 						}
@@ -726,7 +726,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
         m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
 		for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
-			if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
+			if ((*it)->is_type(CONCRETE_SCHEDULER_PRO)) {
 				pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 				ps->inc_barrier_op(m_warp[warp_id].get_cta_id());
 			}
@@ -1284,7 +1284,7 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
 	// accounting for PROgress aware warp scheduling
 	m_warp[inst.warp_id()].inc_warp_num_inst(inst.active_count());
 	for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
-		if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
+		if ((*it)->is_type(CONCRETE_SCHEDULER_PRO)) {
 			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 			ps->inc_num_inst(m_warp[inst.warp_id()].get_cta_id(), inst.active_count());
 		}
@@ -1329,7 +1329,7 @@ void shader_core_ctx::writeback()
         m_scoreboard->releaseRegisters( pipe_reg );
 		if ((pipe_reg->op == BARRIER_OP) || (pipe_reg->op == MEMORY_BARRIER_OP)) {
 			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
-				if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
+				if ((*it)->is_type(CONCRETE_SCHEDULER_PRO)) {
 					pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 					ps->dec_barrier_op(m_warp[warp_id].get_cta_id());
 				}
@@ -3518,7 +3518,7 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned 
             m_warp[inst.warp_id()].set_completed(t);
             m_warp[inst.warp_id()].ibuffer_flush();
 			for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); it++) {
-				if ((*it)->get_type() == CONCRETE_SCHEDULER_PRO) {
+				if ((*it)->is_type(CONCRETE_SCHEDULER_PRO)) {
 					pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
 					ps->set_thread_exit(m_warp[inst.warp_id()].get_cta_id());
 				}

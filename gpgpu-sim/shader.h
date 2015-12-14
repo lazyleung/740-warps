@@ -367,8 +367,8 @@ public:
     // m_supervised_warps with their scheduling policies
     virtual void order_warps() = 0;
 
-	concrete_scheduler get_type() {
-		return m_type;
+	bool is_type(concrete_scheduler type) {
+		return m_type == type;
 	}
 protected:
     virtual void do_on_warp_issued( unsigned warp_id,
@@ -483,10 +483,10 @@ class pro_scheduler : public scheduler_unit {
 				bool cta_id_comp = cta_b < cta_a;
 				bool warp_id_comp = a->get_warp_id() < b->get_warp_id();
 
-				if (!a || a->done_exit() || a->waiting())
-					return (!b || b->done_exit() || b->waiting()) ? (same_cta ? warp_id_comp : cta_id_comp) : false;
+				if (!a || a->done_exit())
+					return (!b || b->done_exit()) ? (same_cta ? warp_id_comp : cta_id_comp) : false;
 
-				if (!b || b->done_exit() || b->waiting())
+				if (!b || b->done_exit())
 					return true;
 	
 				if (same_cta) {
