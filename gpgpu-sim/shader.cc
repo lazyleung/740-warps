@@ -132,7 +132,9 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                          sched_config.find("gto") != std::string::npos ?
                                          CONCRETE_SCHEDULER_GTO :
                                          sched_config.find("warp_limiting") != std::string::npos ?
-                                         CONCRETE_SCHEDULER_WARP_LIMITING:
+                                         CONCRETE_SCHEDULER_WARP_LIMITING :
+										 sched_config.find("daws") != std::string::npos ?
+										 CONCRETE_SCHEDULER_DAWS :
                                          NUM_CONCRETE_SCHEDULERS;
     assert ( scheduler != NUM_CONCRETE_SCHEDULERS );
     
@@ -149,7 +151,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       i
+                                       i,
+									   scheduler
                                      )
                 );
                 break;
@@ -164,6 +167,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                                     &m_pipeline_reg[ID_OC_SFU],
                                                     &m_pipeline_reg[ID_OC_MEM],
                                                     i,
+													scheduler,
                                                     config->gpgpu_scheduler_string
                                                   )
                 );
@@ -178,7 +182,8 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SP],
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
-                                       i
+                                       i,
+									   scheduler
                                      )
                 );
                 break;
@@ -193,11 +198,27 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                        &m_pipeline_reg[ID_OC_SFU],
                                        &m_pipeline_reg[ID_OC_MEM],
                                        i,
+									   scheduler,
                                        config->gpgpu_scheduler_string
                                      )
                 );
                 break;
-            default:
+             case CONCRETE_SCHEDULER_DAWS:
+                schedulers.push_back(
+                    new daws_scheduler( m_stats,
+                                       this,
+                                       m_scoreboard,
+                                       m_simt_stack,
+                                       &m_warp,
+                                       &m_pipeline_reg[ID_OC_SP],
+                                       &m_pipeline_reg[ID_OC_SFU],
+                                       &m_pipeline_reg[ID_OC_MEM],
+                                       i,
+									   scheduler
+                                     )
+                );
+                break;
+             default:
                 abort();
         };
     }
@@ -676,7 +697,7 @@ void shader_core_ctx::func_exec_inst( warp_inst_t &inst )
         inst.generate_mem_accesses();
 }
 
-void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t* next_inst, const active_mask_t &active_mask, unsigned warp_id )
+void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t* next_inst, const active_mask_t &active_mask, unsigned warp_id, scheduler_unit* scheduler, unsigned pc )
 {
     warp_inst_t** pipe_reg = pipe_reg_set.get_free();
     assert(pipe_reg);
@@ -684,7 +705,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     m_warp[warp_id].ibuffer_free();
     assert(next_inst->valid());
     **pipe_reg = *next_inst; // static instruction information
-    (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id() ); // dynamic instruction information
+    (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id(), (void*)scheduler ); // dynamic instruction information
     m_stats->shader_cycle_distro[2+(*pipe_reg)->active_count()]++;
     func_exec_inst( **pipe_reg );
     if( next_inst->op == BARRIER_OP ){
@@ -695,6 +716,21 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
         m_warp[warp_id].set_membar();
     }
 
+	// DAWS stuff
+	if (scheduler->is_type(CONCRETE_SCHEDULER_DAWS)) {
+		daws_scheduler* daws = dynamic_cast<daws_scheduler*>(scheduler);
+		if ((*pipe_reg)->get_loop_mark() == LOOP_START)
+			daws->warp_enter(warp_id, pc, (*pipe_reg)->active_count());
+		else if ((*pipe_reg)->get_loop_mark() == LOOP_END)
+			daws->warp_exit(warp_id, (*pipe_reg->active_count()));
+		else if ((*pipe_reg)->is_load() && 
+				(((*pipe_reg)->space.get_type() == global_space) || 
+				((*pipe_reg)->space.get_type() == local_space) || 
+				((*pipe_reg)->space.get_type() == param_space_local))) {
+			daws->check_load(warp_id, pc, (*pipe_reg)->accessq_back().get_addr(), (*pipe_reg)->active_count(), (*pipe_reg)->accessq_count());
+		}
+	}
+
     updateSIMTStack(warp_id,*pipe_reg);
     m_scoreboard->reserveRegisters(*pipe_reg);
     m_warp[warp_id].set_next_pc(next_inst->pc + next_inst->isize);
@@ -703,7 +739,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 void shader_core_ctx::issue(){
     //really is issue;
     for (unsigned i = 0; i < schedulers.size(); i++) {
-        schedulers[i]->cycle();
+        schedulers[i]->cycle(&(schedulers[i]));
     }
 }
 
@@ -799,7 +835,7 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
     }
 }
 
-void scheduler_unit::cycle()
+void scheduler_unit::cycle(scheduler_unit* current)
 {
     SCHED_DPRINTF( "scheduler_unit::cycle()\n" );
     bool valid_inst = false;  // there was one warp with a valid instruction to issue (didn't require flush due to control hazard)
@@ -847,7 +883,7 @@ void scheduler_unit::cycle()
                         assert( warp(warp_id).inst_in_pipeline() );
                         if ( (pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP) ) {
                             if( m_mem_out->has_free() ) {
-                                m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id);
+                                m_shader->issue_warp(*m_mem_out,pI,active_mask,warp_id,current,pc);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
@@ -857,13 +893,13 @@ void scheduler_unit::cycle()
                             bool sfu_pipe_avail = m_sfu_out->has_free();
                             if( sp_pipe_avail && (pI->op != SFU_OP) ) {
                                 // always prefer SP pipe for operations that can use both SP and SFU pipelines
-                                m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id);
+                                m_shader->issue_warp(*m_sp_out,pI,active_mask,warp_id,current,pc);
                                 issued++;
                                 issued_inst=true;
                                 warp_inst_issued = true;
                             } else if ( (pI->op == SFU_OP) || (pI->op == ALU_SFU_OP) ) {
                                 if( sfu_pipe_avail ) {
-                                    m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id);
+                                    m_shader->issue_warp(*m_sfu_out,pI,active_mask,warp_id,current,pc);
                                     issued++;
                                     issued_inst=true;
                                     warp_inst_issued = true;
@@ -961,16 +997,21 @@ void gto_scheduler::order_warps()
 }
 
 void daws_scheduler::order_warps() {
+	// by default use GTO scheduling
 	gto_scheduler::order_warps();
-	if (m_shader->get_cur_cache_load() <= cache_size) {
+
+	// check if there is cache load within limits
+	if (m_shader->get_cur_cache_load() && (m_shader->get_cur_cache_load() <= cache_size)) {
 		std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
 		while (it != m_next_cycle_prioritized_warps.end()) {
 			unsigned warp_id = (*it)->get_warp_id();
 			struct cache_footprint footprint = cache_footprint_pred_table[warp_id];
+
+			// check for blocked warps, attempt to enter again
 			if (footprint.pc_loop && !footprint.active) {
 				warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
 				if (cache_footprint_pred_table[warp_id].active)
-					i++;
+					it++;
 				else
 					m_next_cycle_prioritized_warps.erase(it);
 			}
@@ -980,24 +1021,139 @@ void daws_scheduler::order_warps() {
 	}
 }
 
-void daws_scheduler::cache_miss(unsigned warp_id, unsigned pc) {
+void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cache_request_status status) {
+	if ((status != HIT) || (status != MISS) || (status != HIT_RESERVED))
+		return;
 
+	// check victim tag array to assess locality
+	bool locality = false;
+	unsigned set = (addr / (block_size * sets / 2)) & 1;
+	unsigned long long tag = addr / (block_size * sets);
+	for (std::deque<signed long long>::iterator it = victim_tag_array[warp_id][set].begin();
+			it != victim_tag_array[warp_id][set].end(); it++) {
+		if ((*it) == -1)
+			break;
+		if ((*it) == tag) {
+			locality = true;
+			victim_tag_array[warp_id][set].erase(it);
+			victim_tag_array[warp_id][set].push_front((signed long long)tag);
+			break;
+		}
+	}
+
+	// add tag to array if not found
+	if ((status == MISS) && !locality) {
+		victim_tag_array[warp_id][set].pop_back();
+		victim_tag_array[warp_id][set].push_front((signed long long)tag);
+	}
+
+	// update locality counter
+	if (sampling_warp_table[warp_id].pc_loop) 
+		sampling_warp_table[warp_id].locality += locality ? 1 : -1;
 }
 
-void daws_scheduler::cache_hit(unsigned warp_id, unsigned pc) {
+void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_type addr, unsigned n_active, unsigned n_access) {
+	if (sampling_warp_table[warp_id].locality > 0) {
+		// get divergence information
+		signed div_chk = n_active > 2 ? (n_access > 2 ? 1 : -1) : 0;
+		std::unordered_map<unsigned, signed>::iterator div_iter = memory_div_detector.find(pc_load);
+		if (div_iter == memory_div_detector.end())
+			memory_div_detector.insert({pc_load, 1 + div_chk});
+		else
+			*div_iter += div_chk;
 
+		// get intra-loop repitition information
+		unsigned long long tag = addr / (block_size * sets);
+		unsigned pc_search = 0;
+		unsigned rep_id = 0;
+		for (auto it = intraloop_rep_detector[warp_id].begin(); it != intraloop_rep_detector.end(); it++) {
+			if (it->tag == tag) {
+				pc_search = (*it).pc_load;
+				intraloop_rep_detector[warp_id].erase(it);
+				std::unordered_map<unsigned, struct static_load_info>::iterator stat_it = 
+					static_load_class_table.find(pc_search);
+				assert (stat_it != static_load_class_table.end());
+				if (!(*stat_it).rep_id) {
+					rep_id = next_rep_id++;
+					(*stat_it).rep_id = rep_id;
+				}
+				else
+					rep_id = (*stat_it).rep_id;
+				break;
+			}
+		}
+		if (!pc_search) 
+			intraloop_rep_detector[warp_id].pop_back();
+		intraloop_rep_detector[warp_id].push_front((struct loop_load_rep){pc_load, tag});
+
+		// check static classification table for entry
+		std::unordered_map<unsigned, struct static_load_info>::iterator stat_it = 
+			static_load_class_table.find(pc_load);
+		if (stat_it != static_load_class_table.end()) {
+			(*stat_it).rep_id = rep_id;
+			(*stat_it).diverged = *div_iter > 1;
+		}
+		else {
+			unsigned pc_loop = sampling_warp_table[warp_id].pc_loop;
+			static_load_class_table.insert({pc_load, (struct static_load_class_table){pc_loop, rep_id, *div_iter > 1}});
+		}
+	}
 }
 
-void daws_scheduler::check_load(unsigned warp_id, unsigned pc, unsigned tag, unsigned n_active, unsigned n_access) {
+void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_active) {
+	std::set<unsigned> act_rep_ids;
+	unsigned load = 0;
 
-}
+	// calculate load prediction
+	for (auto it = static_load_class_table.begin(); it != static_load_class_table.end(); it++) {
+		if ((*it).pc_loop == pc) {
+			if (!act_rep_ids.find((*it).rep_id)) {
+				if ((*it).diverged)
+					load += n_active;
+				else
+					load += n_active > 1 ? 2 : 1;
+				if ((*it).rep_id)
+					act_rep_ids.insert((*it).rep_Id);
+			}
+		}
+	}
+	cache_footprint_pred_table[warp_id] = (struct cache_footprint){pc, load, n_active, false};
 
-void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc, unsigned n_active) {
+	// determine whether warp may enter loop
+	unsigned tot_load = m_shader->get_cur_cache_load() + load;
+	if ((load > cache_size) || (tot_load <= cache_size)) {
+		m_shader->set_cur_cache_load(tot_load);
+		if (tot_load <= cache_size) 
+			cache_footprint_pred_table[warp_id].active = true;
 
+		// check whether to set as sampling warp
+		if (!sampling_warp_table[warp_id].pc_loop && (n_active >= 2)) {
+			for (std::vector<struct loop_sample>::iterator it = sampling_warp_table.begin();
+					it != sampling_warp_table.end(); it++) {
+				if ((*it).pc_loop == pc_loop)
+					return;
+			}
+			sampling_warp_table[warp_id] = (struct loop_sample){pc_loop, 0};
+		}
+	}
 }
 
 void daws_scheduler::warp_exit(unsigned warp_id, unsigned n_active) {
+	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load - cache_footprint_pred_table[warp_id].prediction);
 
+	// check if warp still has threads in loop
+	if (n_active < cache_footprint_pred_table[warp_id].n_active) {
+		n_active = cache_footprint_pred_table[warp_id].n_active - n_active;
+		warp_enter(warp_id, cache_footprint_pred_table[warp_id].pc_loop, n_active);
+	}
+	else {
+		cache_footprint_pred_table[warp_id] = (struct cache_footprint){0, 0, 0, false};
+		n_active = 0;
+	}
+
+	// check if sampling
+	if (sampling_warp_table[warp_id].pc_loop && (n_active < 2)) 
+		sampling_warp_table[warp_id] = (struct loop_sample){0, 0};
 }
 
 void
@@ -1075,8 +1231,9 @@ swl_scheduler::swl_scheduler ( shader_core_stats* stats, shader_core_ctx* shader
                                register_set* sfu_out,
                                register_set* mem_out,
                                int id,
+							   concrete_scheduler type,
                                char* config_string )
-    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id )
+    : scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type )
 {
     unsigned m_prioritization_readin;
     int ret = sscanf( config_string,
@@ -1374,10 +1531,18 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, war
     if( !cache->data_port_free() ) 
         return DATA_PORT_STALL; 
 
-    //const mem_access_t &access = inst.accessq_back();
+    const mem_access_t &access = inst.accessq_back();
     mem_fetch *mf = m_mf_allocator->alloc(inst,inst.accessq_back());
     std::list<cache_event> events;
     enum cache_request_status status = cache->access(mf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events);
+
+	// DAWS stuff
+	if ((cache == m_L1D) && (((scheduler_unit*)(inst.get_scheduler()))->is_type(CONCRETE_SCHEDULER_DAWS)) &&
+			((status == HIT) || (status == MISS) || (status == HIT_RESERVED))) {
+		daws_scheduler* daws = dynamic_cast<daws_scheduler*>((scheduler_unit*)(inst.get_scheduler()));
+		daws->cache_access(inst.warp_id(), access.get_addr(), status);
+	}
+
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
 

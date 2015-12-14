@@ -41,6 +41,7 @@
 #include <utility>
 #include <algorithm>
 #include <deque>
+#include <unordered_map>
 
 //#include "../cuda-sim/ptx.tab.h"
 
@@ -307,10 +308,11 @@ public:
                    register_set* sp_out,
                    register_set* sfu_out,
                    register_set* mem_out,
-                   int id) 
+                   int id,
+				   concrete_scheduler type) 
         : m_supervised_warps(), m_stats(stats), m_shader(shader),
         m_scoreboard(scoreboard), m_simt_stack(simt), /*m_pipeline_reg(pipe_regs),*/ m_warp(warp),
-        m_sp_out(sp_out),m_sfu_out(sfu_out),m_mem_out(mem_out), m_id(id){}
+        m_sp_out(sp_out),m_sfu_out(sfu_out),m_mem_out(mem_out), m_id(id), m_type(type) {}
     virtual ~scheduler_unit(){}
     virtual void add_supervised_warp_id(int i) {
         m_supervised_warps.push_back(&warp(i));
@@ -323,7 +325,8 @@ public:
     // The core scheduler cycle method is meant to be common between
     // all the derived schedulers.  The scheduler's behaviour can be
     // modified by changing the contents of the m_next_cycle_prioritized_warps list.
-    void cycle();
+    void cycle(scheduler_unit* current);
+	// DAWS hackery
 
     // These are some common ordering fucntions that the
     // higher order schedulers can take advantage of
@@ -356,6 +359,9 @@ public:
     // m_supervised_warps with their scheduling policies
     virtual void order_warps() = 0;
 
+	bool is_type(concrete_scheduler type) {
+		return type == m_type;
+	}
 protected:
     virtual void do_on_warp_issued( unsigned warp_id,
                                     unsigned num_issued,
@@ -386,6 +392,7 @@ protected:
     register_set* m_mem_out;
 
     int m_id;
+	concrete_scheduler m_type;
 };
 
 class lrr_scheduler : public scheduler_unit {
@@ -396,8 +403,9 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
-                    int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ){}
+                    int id, 
+					concrete_scheduler type )
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ){}
 	virtual ~lrr_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -413,8 +421,9 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
-                    int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ){}
+                    int id,
+					concrete_scheduler type )
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ){}
 	virtual ~gto_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -431,45 +440,44 @@ public:
                     register_set* sp_out,
                     register_set* sfu_out,
                     register_set* mem_out,
-                    int id )
-	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ) {
-		static_load_class_table.resize(32);
+                    int id,
+					concrete_scheduler type )
+	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {
 		cache_footprint_pred_table.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
 		sampling_warp_table.resize(16);
-		memory_divergence_detector.resize(32);
-		for (unsigned i = 0; i < 32; i++)
-			memory_divergence_detector[i].div_count = 1;
 		intraloop_rep_detector.resize(8);
 		victim_tag_array.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
 		for (unsigned i = 0; i < victim_tag_array.size(); i++) {
 			victim_tag_array[i].resize(2);
-			victim_tag_array[i][0].resize(8);
-			victim_tag_array[i][1].resize(8);
+			victim_tag_array[i][0].resize(8, -1);
+			victim_tag_array[i][1].resize(8, -1);
 		}
-		warp_loop_pc_array.resize(shader->get_config()->max_warps_per_shader / shader->get_config()->gpgpu_max_sched_per_core);
 
-		unsigned n_sets, assoc;
-		sscanf(shader->get_config()->m_L1D_config, "%u:%u:%u,", &n_sets, &block_size, &assoc);
-		cache_size = (unsigned)(assoc_factor * (float)(n_sets * assoc));
+		sscanf(shader->get_config()->m_L1D_config, "%u:%u:%u,", &sets, &block_size, &assoc);
+		assoc_factor = 0.6;
+		cache_size = (unsigned)(assoc_factor * (float)(sets * assoc));
+		next_rep_id = 1;
 	}
 
 	virtual ~daws_scheduler () {}
 	virtual void order_warps ();
 
-	void cache_miss(unsigned warp_id, unsigned pc);
-	void cache_hit(unsigned warp_id, unsigned pc);
-	void check_load(unsigned warp_id, unsigned pc, unsigned tag, unsigned n_active, unsigned n_access);
-	void warp_enter(unsigned warp_id, unsigned pc, unsigned n_active);
+	// functions for updating dynamic loop/load information
+	void cache_access(unsigned warp_id, new_addr_type addr, enum cache_request_status);
+	void check_load(unsigned warp_id, unsigned pc_load, new_addr_type address, unsigned n_active, unsigned n_access);
+
+	// functions to indicate entry/exit of a loop
+	void warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_active);
 	void warp_exit(unsigned warp_id, unsigned n_active);
 
 private:
 	struct load_info {
 		unsigned pc_loop;
-		unsigned pc_load;
 		unsigned rep_id;
 		bool diverged;
 	};
-	std::deque<struct static_load_info> static_load_class_table;
+	// key is pc_load
+	std::unordered_map<unsigned, struct static_load_info> static_load_class_table;
 
 	struct cache_footprint {
 		unsigned pc_loop;
@@ -480,28 +488,24 @@ private:
 	std::vector<struct cache_footprint> cache_footprint_pred_table;
 
 	struct loop_sample {
-		unsigned w_id;
 		unsigned pc_loop;
-		bool locality;
+		signed locality;
 	};
 	std::vector<struct loop_sample> sampling_warp_table;
 
-	struct load_divergence {
-		unsigned pc_load;
-		unsigned div_count;
-	};
-	std::vector<struct load_divergence> memory_divergence_detector;
+	// key is pc_load, value is divergence counter
+	std::unordered_map<unsigned, signed> memory_div_detector;
 
 	struct loop_load_rep {
+		unsigned long long tag;
 		unsigned pc_load;
-		unsigned rep_id;
 	};
 	std::vector<std::deque<struct loop_load_rep>> intraloop_rep_detector;
 
-	std::vector<std::vector<std::deque<signed>>> victim_tag_array;
+	std::vector<std::vector<std::deque<signed long long>>> victim_tag_array;
 
-	const float assoc_factor = 0.6;
-	unsigned cache_size, block_size;
+	const float assoc_factor;
+	unsigned cache_size, sets, assoc, block_size, next_rep_id;
 }
 
 class two_level_active_scheduler : public scheduler_unit {
@@ -513,8 +517,9 @@ public:
                           register_set* sfu_out,
                           register_set* mem_out,
                           int id,
+						  concrete_scheduler type,
                           char* config_str )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id ),
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ),
 	  m_pending_warps() 
     {
         unsigned inner_level_readin;
@@ -563,6 +568,7 @@ public:
                     register_set* sfu_out,
                     register_set* mem_out,
                     int id,
+					concrete_scheduler type,
                     char* config_string );
 	virtual ~swl_scheduler () {}
 	virtual void order_warps ();
@@ -1854,6 +1860,7 @@ public:
     friend class TwoLevelScheduler;
     friend class LooseRoundRobbinScheduler;
     void issue_warp( register_set& warp, const warp_inst_t *pI, const active_mask_t &active_mask, unsigned warp_id );
+    void issue_warp( register_set& warp, const warp_inst_t *pI, const active_mask_t &active_mask, unsigned warp_id, scheduler_unit* scheduler, unsigned pc );
     void func_exec_inst( warp_inst_t &inst );
 
      // Returns numbers of addresses in translated_addrs
