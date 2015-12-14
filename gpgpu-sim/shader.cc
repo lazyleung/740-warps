@@ -726,7 +726,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 		if ((*pipe_reg)->get_loop_mark() == LOOP_START)
 			daws->warp_enter(warp_id, pc, (*pipe_reg)->active_count());
 		else if ((*pipe_reg)->get_loop_mark() == LOOP_END)
-			daws->warp_exit(warp_id, (*pipe_reg->active_count()));
+			daws->warp_exit(warp_id, (*pipe_reg)->active_count());
 		else if ((*pipe_reg)->is_load() && 
 				(((*pipe_reg)->space.get_type() == global_space) || 
 				((*pipe_reg)->space.get_type() == local_space) || 
@@ -1060,11 +1060,10 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 	if (sampling_warp_table[warp_id].locality > 0) {
 		// get divergence information
 		signed div_chk = n_active > 2 ? (n_access > 2 ? 1 : -1) : 0;
-		std::unordered_map<unsigned, signed>::iterator div_iter = memory_div_detector.find(pc_load);
-		if (div_iter == memory_div_detector.end())
+		if (memory_div_detector.find(pc_load) == memory_div_detector.end())
 			memory_div_detector.insert({pc_load, 1 + div_chk});
 		else
-			*div_iter += div_chk;
+			memory_div_detector[pc_load] += div_chk;
 
 		// get intra-loop repitition information
 		unsigned long long tag = addr / (block_size * sets);
