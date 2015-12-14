@@ -265,9 +265,7 @@ ptr_align_spec: ALIGN_DIRECTIVE INT_OPERAND
 
 statement_block: LEFT_BRACE statement_list RIGHT_BRACE 
 
-statement_list: LOOP_START_DIRECTIVE { add_loop_start(); }
-	| LOOP_END_DIRECTIVE { add_loop_end(); }
-	| directive_statement { add_directive(); }
+statement_list: directive_statement { add_directive(); }
 	| instruction_statement { add_instruction(); }
 	| statement_list directive_statement { add_directive(); }
 	| statement_list instruction_statement { add_instruction(); }
@@ -383,6 +381,12 @@ literal_list: literal_operand
 instruction_statement:  instruction SEMI_COLON
 	| IDENTIFIER COLON { add_label($1); }    
 	| pred_spec instruction SEMI_COLON;
+	| loop_spec instruction SEMI_COLON;
+	| loop_spec pred_spec instruction SEMI_COLON;
+
+loop_spec: LOOP_START_DIRECTIVE { add_loop_start(); }
+	| LOOP_END_DIRECTIVE { add_loop_end(); }
+	;
 
 instruction: opcode_spec LEFT_PAREN operand RIGHT_PAREN { set_return(); } COMMA operand COMMA LEFT_PAREN operand_list RIGHT_PAREN
 	| opcode_spec operand COMMA LEFT_PAREN operand_list RIGHT_PAREN
