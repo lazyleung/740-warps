@@ -477,7 +477,7 @@ private:
 		bool diverged;
 	};
 	// key is pc_load
-	std::unordered_map<unsigned, struct static_load_info> static_load_class_table;
+	std::unordered_map<unsigned, struct load_info> static_load_class_table;
 
 	struct cache_footprint {
 		unsigned pc_loop;
@@ -504,9 +504,9 @@ private:
 
 	std::vector<std::vector<std::deque<signed long long>>> victim_tag_array;
 
-	const float assoc_factor;
+	float assoc_factor;
 	unsigned cache_size, sets, assoc, block_size, next_rep_id;
-}
+};
 
 class two_level_active_scheduler : public scheduler_unit {
 public:

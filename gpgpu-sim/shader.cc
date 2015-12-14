@@ -1070,7 +1070,7 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 			if (it->tag == tag) {
 				pc_search = (*it).pc_load;
 				intraloop_rep_detector[warp_id].erase(it);
-				std::unordered_map<unsigned, struct static_load_info>::iterator stat_it = 
+				std::unordered_map<unsigned, struct load_info>::iterator stat_it = 
 					static_load_class_table.find(pc_search);
 				assert (stat_it != static_load_class_table.end());
 				if (!(*stat_it).rep_id) {
@@ -1087,7 +1087,7 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 		intraloop_rep_detector[warp_id].push_front((struct loop_load_rep){pc_load, tag});
 
 		// check static classification table for entry
-		std::unordered_map<unsigned, struct static_load_info>::iterator stat_it = 
+		std::unordered_map<unsigned, struct load_info>::iterator stat_it = 
 			static_load_class_table.find(pc_load);
 		if (stat_it != static_load_class_table.end()) {
 			(*stat_it).rep_id = rep_id;
