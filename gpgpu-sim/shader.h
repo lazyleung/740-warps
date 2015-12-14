@@ -447,7 +447,7 @@ public:
 		cache_footprint_pred_table.resize(max_warps / max_sched);
 		sampling_warp_table.resize(16);
 		intraloop_rep_detector.resize(8);
-		for (usigned i = 0; i < intraloop_rep_detector.size(); i++) {
+		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 			intraloop_rep_detector[i].resize(8);
 		}
 		victim_tag_array.resize(max_warps / max_sched);
