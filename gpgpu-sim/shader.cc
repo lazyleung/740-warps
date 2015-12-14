@@ -1109,8 +1109,8 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 
 	// calculate load prediction
 	for (auto it = static_load_class_table.begin(); it != static_load_class_table.end(); it++) {
-		if ((*it).second.pc_loop == pc) {
-			if (!act_rep_ids.find((*it).second.rep_id)) {
+		if ((*it).second.pc_loop == pc_loop) {
+			if (act_rep_ids.find((*it).second.rep_id) == act_rep_ids.end()) {
 				if ((*it).second.diverged)
 					load += n_active;
 				else
@@ -1120,7 +1120,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 			}
 		}
 	}
-	cache_footprint_pred_table[warp_id] = (struct cache_footprint){pc, load, n_active, false};
+	cache_footprint_pred_table[warp_id] = (struct cache_footprint){pc_loop, load, n_active, false};
 
 	// determine whether warp may enter loop
 	unsigned tot_load = m_shader->get_cur_cache_load() + load;
