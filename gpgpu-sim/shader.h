@@ -443,7 +443,7 @@ public:
 					concrete_scheduler type )
 	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {}
 
-	void init(unsigned max_warps, unsigned max_sched, char* m_L1D_config) {
+	void init(const unsigned max_warps, const int max_sched, cache_config m_L1D_config) {
 		cache_footprint_pred_table.resize(max_warps / max_sched);
 		sampling_warp_table.resize(16);
 		intraloop_rep_detector.resize(8);
@@ -457,7 +457,9 @@ public:
 			victim_tag_array[i][1].resize(8, -1);
 		}
 
-		sscanf(m_L1D_config, "%u:%u:%u,", &sets, &block_size, &assoc);
+		block_size = m_L1D_config.get_line_sz();
+		assoc = m_L1D_config.get_assoc();
+		sets = m_L1D_config.get_nsets();
 		assoc_factor = 0.6;
 		cache_size = (unsigned)(assoc_factor * (float)(sets * assoc));
 		next_rep_id = 1;
