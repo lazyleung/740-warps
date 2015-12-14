@@ -1033,8 +1033,7 @@ void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cac
 	bool locality = false;
 	unsigned set = (addr / (block_size * sets / 2)) & 1;
 	unsigned long long tag = addr / (block_size * sets);
-	for (std::deque<signed long long>::iterator it = victim_tag_array[warp_id][set].begin();
-			it != victim_tag_array[warp_id][set].end(); it++) {
+	for (auto it = victim_tag_array[warp_id][set].begin(); it != victim_tag_array[warp_id][set].end(); it++) {
 		if ((*it) == -1)
 			break;
 		if ((*it) == tag) {
@@ -1074,15 +1073,14 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 			if (it->tag == tag) {
 				pc_search = (*it).pc_load;
 				intraloop_rep_detector[loc_tag].erase(it);
-				std::unordered_map<unsigned, struct load_info>::iterator stat_it = 
-					static_load_class_table.find(pc_search);
+				auto stat_it = static_load_class_table.find(pc_search);
 				assert (stat_it != static_load_class_table.end());
-				if (!(*stat_it).rep_id) {
+				if (!(*stat_it).second.rep_id) {
 					rep_id = next_rep_id++;
-					(*stat_it).rep_id = rep_id;
+					(*stat_it).second.rep_id = rep_id;
 				}
 				else
-					rep_id = (*stat_it).rep_id;
+					rep_id = (*stat_it).second.rep_id;
 				break;
 			}
 		}
@@ -1091,16 +1089,16 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 		intraloop_rep_detector[loc_tag].push_front((struct loop_load_rep){tag, warp_id, pc_load});
 
 		// check static classification table for entry
-		std::unordered_map<unsigned, struct load_info>::iterator stat_it = 
-			static_load_class_table.find(pc_load);
+		auto stat_it = static_load_class_table.find(pc_load);
 		if (stat_it != static_load_class_table.end()) {
-			if (!(*stat_it).rep_id)
-				(*stat_it).rep_id = rep_id;
-			(*stat_it).diverged = *div_iter > 1;
+			if (!(*stat_it).second.rep_id)
+				(*stat_it).second.rep_id = rep_id;
+			(*stat_it).second.diverged = *div_iter > 1;
 		}
 		else {
 			unsigned pc_loop = sampling_warp_table[warp_id].pc_loop;
-			static_load_class_table.insert({pc_load, (struct static_load_class_table){pc_loop, rep_id, *div_iter > 1}});
+			static_load_class_table.insert(
+				{pc_load, (struct static_load_class_table){pc_loop, rep_id, memory_div_detector[pc_load] > 1}});
 		}
 	}
 }
@@ -1111,14 +1109,14 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 
 	// calculate load prediction
 	for (auto it = static_load_class_table.begin(); it != static_load_class_table.end(); it++) {
-		if ((*it).pc_loop == pc) {
-			if (!act_rep_ids.find((*it).rep_id)) {
-				if ((*it).diverged)
+		if ((*it).second.pc_loop == pc) {
+			if (!act_rep_ids.find((*it).second.rep_id)) {
+				if ((*it).second.diverged)
 					load += n_active;
 				else
 					load += n_active > 1 ? 2 : 1;
-				if ((*it).rep_id)
-					act_rep_ids.insert((*it).rep_id);
+				if ((*it).second.rep_id)
+					act_rep_ids.insert((*it).second.rep_id);
 			}
 		}
 	}
@@ -1133,8 +1131,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 
 		// check whether to set as sampling warp
 		if (!sampling_warp_table[warp_id].pc_loop && (n_active >= 2)) {
-			for (std::vector<struct loop_sample>::iterator it = sampling_warp_table.begin();
-					it != sampling_warp_table.end(); it++) {
+			for (auto it = sampling_warp_table.begin(); it != sampling_warp_table.end(); it++) {
 				if ((*it).pc_loop == pc_loop)
 					return;
 			}
