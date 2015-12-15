@@ -470,7 +470,7 @@ class pro_scheduler : public scheduler_unit {
 				else if (m_ctas_available && m_cta_exit[(*it)->get_cta_id()])
 					m_warps_exit.push_back(*it);
 				else
-					m_warp_nowait.push_back(*it);
+					m_warps_nowait.push_back(*it);
 			}
 
 			m_ordered_warps.clear();
@@ -541,7 +541,7 @@ class pro_scheduler : public scheduler_unit {
 			}
 		};
 
-		struct barr_sort_struct(pro_scheduler* ps) : m_ps(ps) {
+		struct barr_sort_struct {
 			pro_scheduler* m_ps;
 
 			barr_sort_struct(pro_scheduler* ps) : m_ps(ps) {};
