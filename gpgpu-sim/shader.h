@@ -475,10 +475,10 @@ class pro_scheduler : public scheduler_unit {
 
 			m_ordered_warps.clear();
 
-			std::sort(m_warps_barr.begin(), m_warps_barr.end(), barr_sort);
-			std::sort(m_warps_nowait.begin(), m_warps_nowait.end(), nowait_sort);
+			m_warps_barr.sort(barr_sort);
+			m_warps_nowait.sort(nowait_sort);
 			if (m_ctas_available) {
-				std::sort(m_warps_exit.begin(), m_warps_exit.end(), barr_sort);
+				m_warps_exit.sort(barr_sort);
 				m_ordered_warps.splice(m_ordered_warps.end(), m_warps_exit);
 			}
 			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_barr);
