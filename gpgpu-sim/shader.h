@@ -461,11 +461,11 @@ class pro_scheduler : public scheduler_unit {
 		}
 
 	private:
-		unsigned** m_cta_num_inst[MAX_CTA_PER_SHADER];
-		unsigned** m_cta_warp_exit[MAX_CTA_PER_SHADER];
-		unsigned** m_cta_warp_barr[MAX_CTA_PER_SHADER];
-		bool** m_cta_barr[MAX_CTA_PER_SHADER];
-		bool** m_cta_exit[MAX_CTA_PER_SHADER];
+		unsigned** m_cta_num_inst;
+		unsigned** m_cta_warp_exit;
+		unsigned** m_cta_warp_barr;
+		bool** m_cta_barr;
+		bool** m_cta_exit;
 		bool* m_ctas_available;
 		unsigned m_cycles_since_order;
 
