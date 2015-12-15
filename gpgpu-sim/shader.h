@@ -436,7 +436,7 @@ class pro_scheduler : public scheduler_unit {
 			m_cta_exit[cta] = false;
 		}
 		void set_thread_exit(unsigned cta) {
-			m_cta_warp_exit[cta] = true;
+			m_cta_exit[cta] = true;
 		}
 		void inc_num_inst(unsigned cta, unsigned inc) {
 			m_cta_num_inst[cta] += inc;
