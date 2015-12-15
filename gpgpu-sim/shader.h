@@ -424,9 +424,11 @@ class pro_scheduler : public scheduler_unit {
 
 		virtual ~pro_scheduler() {}
 		virtual void order_warps();
-		virtual void done_adding_supervised_warps() {
-			m_last_supervised_issued = m_supervised_warps.end();
-		}
+	
+	    virtual void add_supervised_warp_id(int i) {
+	        m_supervised_warps.push_back(&warp(i));
+			m_ordered_warps.push_back(&warp(i));
+	    }
 
 		void init_cta(unsigned cta) {
 			m_cta_num_inst[cta] = 0;
@@ -457,25 +459,121 @@ class pro_scheduler : public scheduler_unit {
 			m_cta_warp_exit[cta]++;
 		}
 		void sort() {
-			sort_struct s(this);
-			std::sort(m_supervised_warps.begin(), m_supervised_warps.end(), s);
+			barr_sort_struct barr_sort(this);
+			nowait_sort_struct nowait_sort(this);
+
+			for (auto it = m_supervised_warps.begin(); it != m_supervised_warps.end(); it++) {
+				if (!(*it) || (*it)->done_exit())
+					continue;
+				if (m_cta_barr[(*it)->get_cta_id()])
+					m_warps_barr.push_back(*it);
+				else if (m_ctas_available && m_cta_exit[(*it)->get_cta_id()])
+					m_warps_exit.push_back(*it);
+				else
+					m_warp_nowait.push_back(*it);
+			}
+
+			m_ordered_warps.clear();
+
+			std::sort(m_warps_barr.begin(), m_warps_barr.end(), barr_sort);
+			std::sort(m_warps_nowait.begin(), m_warps_nowait.end(), nowait_sort);
+			if (m_ctas_available) {
+				std::sort(m_warps_exit.begin(), m_warps_exit.end(), barr_sort);
+				m_ordered_warps.splice(m_ordered_warps.end(), m_warps_exit());
+			}
+			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_barr());
+			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_nowait());
 		}
+
 	private:
 		unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];
 		unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER];
 		unsigned m_cta_warp_barr[MAX_CTA_PER_SHADER];
 		bool m_cta_barr[MAX_CTA_PER_SHADER];
 		bool m_cta_exit[MAX_CTA_PER_SHADER];
-		//bool m_cta_kernel_done[MAX_CTA_PER_SHADER];
 		unsigned m_cycles_since_order;
 		bool m_ctas_available;
 
-		struct sort_struct {
+		struct warp_iter {
+			shd_warp_t* warp;
+			std::list<warp_iter*>::iterator nowait_iter, barr_iter, exit_iter;
+		};
+
+		std::list<shd_warp_t*> m_warps_nowait;
+		std::list<shd_warp_t*> m_warps_barr;
+		std::list<shd_warp_t*> m_warps_exit;
+		std::list<shd_warp_t*> m_ordered_warps;
+
+		struct nowait_sort_struct {
 			pro_scheduler* m_ps;
 
-			sort_struct(pro_scheduler* ps) : m_ps(ps) {};
+			nowait_sort_struct(pro_scheduler* ps) : m_ps(ps) {};
 
 			bool operator() (shd_warp_t* a, shd_warp_t* b) {
+				unsigned cta_a = a ? a->get_cta_id() : 0;
+				unsigned cta_b = b ? b->get_cta_id() : 0;
+	
+				bool same_cta = cta_b == cta_a;
+				bool cta_id_comp = cta_b < cta_a;
+				bool warp_id_comp = a && b ? a->get_warp_id() < b->get_warp_id() : a < b;
+
+				if (!a || a->done_exit())
+					return (!b || b->done_exit()) ? (same_cta ? warp_id_comp : cta_id_comp) : false;
+
+				if (!b || b->done_exit())
+					return true;
+			
+				if (same_cta) {
+					if (a->get_inst_comp() == b->get_inst_comp())
+						return warp_id_comp;
+					return m_ps->m_ctas_available ? a->get_inst_comp() > b->get_inst_comp() : 
+						a->get_inst_comp() < b->get_inst_comp();
+				}
+
+				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
+
+				if (m_ps->m_ctas_available)
+					return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : 
+						cta_id_comp;
+				else
+					return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] < m_ps->m_cta_num_inst[cta_b] : 
+						cta_id_comp;
+			}
+		};
+
+		struct barr_sort_struct(pro_scheduler* ps) : m_ps(ps) {
+			pro_scheduler* m_ps;
+
+			barr_sort_struct(pro_scheduler* ps) : m_ps(ps) {};
+
+			bool operator() (shd_warp_t* a, shd_warp_t* b) {
+				unsigned cta_a = a ? a->get_cta_id() : 0;
+				unsigned cta_b = b ? b->get_cta_id() : 0;
+	
+				bool same_cta = cta_b == cta_a;
+				bool cta_id_comp = cta_b < cta_a;
+				bool warp_id_comp = a && b ? a->get_warp_id() < b->get_warp_id() : a < b;
+
+				if (!a || a->done_exit())
+					return (!b || b->done_exit()) ? (same_cta ? warp_id_comp : cta_id_comp) : false;
+
+				if (!b || b->done_exit())
+					return true;
+
+				if (same_cta) {
+					if (a->get_inst_comp() == b->get_inst_comp())
+						return warp_id_comp;
+					else
+						return a->get_inst_comp() < b->get_inst_comp();
+				}
+
+				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
+
+				return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b];
+			}
+		};
+
+			/*bool operator() (shd_warp_t* a, shd_warp_t* b) {
 				unsigned cta_a = a->get_cta_id();
 				unsigned cta_b = b->get_cta_id();
 	
@@ -518,9 +616,7 @@ class pro_scheduler : public scheduler_unit {
 						return !b_barr || cta_inst_comp_up;
 					return !b_barr && cta_inst_comp_dn;
 				}
-			}	
-		};
-
+			}*/
 };
 
 class lrr_scheduler : public scheduler_unit {

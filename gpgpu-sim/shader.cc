@@ -994,8 +994,8 @@ void pro_scheduler::order_warps() {
 		m_cycles_since_order = 0;
 	}
 
-	for (std::vector<shd_warp_t*>::iterator it = m_supervised_warps.begin(); it != m_supervised_warps.end(); it++) {
-		if (!(*it) || (*it)->done_exit())
+	for (auto it = m_ordered_warps.begin(); it != m_ordered_warps.end(); it++) {
+		if (!(*it) || (*it)->done_exit() || (*it)->waiting())
 			continue;
 		m_next_cycle_prioritized_warps.push_back(*it);
 	}
