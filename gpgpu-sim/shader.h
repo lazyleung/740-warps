@@ -479,10 +479,10 @@ class pro_scheduler : public scheduler_unit {
 			std::sort(m_warps_nowait.begin(), m_warps_nowait.end(), nowait_sort);
 			if (m_ctas_available) {
 				std::sort(m_warps_exit.begin(), m_warps_exit.end(), barr_sort);
-				m_ordered_warps.splice(m_ordered_warps.end(), m_warps_exit());
+				m_ordered_warps.splice(m_ordered_warps.end(), m_warps_exit);
 			}
-			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_barr());
-			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_nowait());
+			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_barr);
+			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_nowait);
 		}
 
 	private:
@@ -569,7 +569,7 @@ class pro_scheduler : public scheduler_unit {
 
 				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
 
-				return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b];
+				return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : cta_id_comp;
 			}
 		};
 
