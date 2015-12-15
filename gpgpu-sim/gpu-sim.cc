@@ -1104,13 +1104,7 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     m_cta_status[free_cta_hw_id]=nthreads_in_block;
 
 	// initialize accounting for PROgress aware warp scheduler
-	for (std::vector<scheduler_unit*>::iterator it = schedulers.begin(); it != schedulers.end(); ++it) {
-		if ((*it)->is_type(CONCRETE_SCHEDULER_PRO)) {
-			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(*it);
-			ps->init_cta(free_cta_hw_id);
-			ps->set_ctas_available(m_gpu->get_more_cta_left());
-		}
-	}
+	set_ctas_available(m_gpu->get_more_cta_left());
 
     // now that we know which warps are used in this CTA, we can allocate
     // resources for use in CTA-wide barrier operations
