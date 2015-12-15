@@ -420,12 +420,12 @@ class pro_scheduler : public scheduler_unit {
 		virtual void order_warps();
 
 		void init(unsigned** num_inst, unsigned** num_exit, unsigned** num_barr, bool** barr, bool** exit, bool* available) {
-			m_cta_num_inst = &(m_shader->m_cta_num_inst);
-			m_cta_warp_exit = &(m_shader->m_cta_warp_exit);
-			m_cta_warp_barr = &(m_shader->m_cta_warp_barr);
-			m_cta_barr = &(mshader->m_cta_barr);
-			m_cta_exit = &(mshader->m_cta_exit);
-			m_ctas_available = &(m_shader->m_ctas_available);
+			m_cta_num_inst = num_inst;
+			m_cta_warp_exit = num_exit;
+			m_cta_warp_barr = num_barr;
+			m_cta_barr = barr;
+			m_cta_exit = exit;
+			m_ctas_available = available;
 		}
 	
 	    virtual void add_supervised_warp_id(int i) {
