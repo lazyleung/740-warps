@@ -419,7 +419,7 @@ class pro_scheduler : public scheduler_unit {
 		virtual ~pro_scheduler() {}
 		virtual void order_warps();
 
-		void init(unsigned num_inst[MAX_CTA_PER_CORE], unsigned num_exit[MAX_CTA_PER_CORE], unsigned num_barr[MAX_CTA_PER_CORE], bool barr[MAX_CTA_PER_CORE], bool exit[MAX_CTA_PER_CORE], bool* available) {
+		void init(unsigned num_inst[MAX_CTA_PER_SHADER], unsigned num_exit[MAX_CTA_PER_SHADER], unsigned num_barr[MAX_CTA_PER_SHADER], bool barr[MAX_CTA_PER_SHADER], bool exit[MAX_CTA_PER_SHADER], bool* available) {
 			m_cta_num_inst = num_inst;
 			m_cta_warp_exit = num_exit;
 			m_cta_warp_barr = num_barr;
