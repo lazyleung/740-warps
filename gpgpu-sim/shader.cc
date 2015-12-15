@@ -1107,35 +1107,52 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 	std::set<unsigned> act_rep_ids;
 	unsigned load = 0;
 
-	// calculate load prediction
-	for (auto it = static_load_class_table.begin(); it != static_load_class_table.end(); it++) {
-		if ((*it).second.pc_loop == pc_loop) {
-			if (act_rep_ids.find((*it).second.rep_id) == act_rep_ids.end()) {
-				if ((*it).second.diverged)
-					load += n_active;
-				else
-					load += n_active > 1 ? 2 : 1;
-				if ((*it).second.rep_id)
-					act_rep_ids.insert((*it).second.rep_id);
+	if (cache_footprint_pred_table[warp_id].active) {
+		if (pc_loop == cache_footprint_pred_table[warp_id].pc_loop) {
+			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
+				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
+					if ((*it).pc_load && ((*it).warp_id == warp_id)) {
+						intraloop_rep_detector.erase(it);
+						intraloop_rep_detector.push_back((struct loop_load_rep){0, 0, 0});
+						it--;
+					}
+				}
+			}
+
+		}
+
+	}
+	else {
+		// calculate load prediction
+		for (auto it = static_load_class_table.begin(); it != static_load_class_table.end(); it++) {
+			if ((*it).second.pc_loop == pc_loop) {
+				if (act_rep_ids.find((*it).second.rep_id) == act_rep_ids.end()) {
+					if ((*it).second.diverged)
+						load += n_active;
+					else
+						load += n_active > 1 ? 2 : 1;
+					if ((*it).second.rep_id)
+						act_rep_ids.insert((*it).second.rep_id);
+				}
 			}
 		}
-	}
-	cache_footprint_pred_table[warp_id] = (struct cache_footprint){pc_loop, load, n_active, false};
-
-	// determine whether warp may enter loop
-	unsigned tot_load = m_shader->get_cur_cache_load() + load;
-	if ((load > cache_size) || (tot_load <= cache_size)) {
-		m_shader->set_cur_cache_load(tot_load);
-		if (tot_load <= cache_size) 
-			cache_footprint_pred_table[warp_id].active = true;
-
-		// check whether to set as sampling warp
-		if (!sampling_warp_table[warp_id].pc_loop && (n_active >= 2)) {
-			for (auto it = sampling_warp_table.begin(); it != sampling_warp_table.end(); it++) {
-				if ((*it).pc_loop == pc_loop)
-					return;
+		cache_footprint_pred_table[warp_id] = (struct cache_footprint){pc_loop, load, n_active, false};
+	
+		// determine whether warp may enter loop
+		unsigned tot_load = m_shader->get_cur_cache_load() + load;
+		if ((load > cache_size) || (tot_load <= cache_size)) {
+			m_shader->set_cur_cache_load(tot_load);
+			if (tot_load <= cache_size) 
+				cache_footprint_pred_table[warp_id].active = true;
+	
+			// check whether to set as sampling warp
+			if (!sampling_warp_table[warp_id].pc_loop && (n_active >= 2)) {
+				for (auto it = sampling_warp_table.begin(); it != sampling_warp_table.end(); it++) {
+					if ((*it).pc_loop == pc_loop)
+						return;
+				}
+				sampling_warp_table[warp_id] = (struct loop_sample){pc_loop, 0};
 			}
-			sampling_warp_table[warp_id] = (struct loop_sample){pc_loop, 0};
 		}
 	}
 }
