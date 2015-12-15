@@ -419,7 +419,7 @@ class pro_scheduler : public scheduler_unit {
 		virtual ~pro_scheduler() {}
 		virtual void order_warps();
 
-		void init(unsigned** num_inst, unsigned** num_exit, unsigned** num_barr, bool** barr, bool** exit, bool* available) {
+		void init(unsigned num_inst[MAX_CTA_PER_CORE], unsigned num_exit[MAX_CTA_PER_CORE], unsigned num_barr[MAX_CTA_PER_CORE], bool barr[MAX_CTA_PER_CORE], bool exit[MAX_CTA_PER_CORE], bool* available) {
 			m_cta_num_inst = num_inst;
 			m_cta_warp_exit = num_exit;
 			m_cta_warp_barr = num_barr;
@@ -440,9 +440,9 @@ class pro_scheduler : public scheduler_unit {
 			for (auto it = m_supervised_warps.begin(); it != m_supervised_warps.end(); it++) {
 				if (!(*it) || (*it)->done_exit())
 					continue;
-				if ((*m_cta_barr)[(*it)->get_cta_id()])
+				if (m_cta_barr[(*it)->get_cta_id()])
 					m_warps_barr.push_back(*it);
-				else if (*m_ctas_available && (*m_cta_exit)[(*it)->get_cta_id()])
+				else if (*m_ctas_available && m_cta_exit[(*it)->get_cta_id()])
 					m_warps_exit.push_back(*it);
 				else
 					m_warps_nowait.push_back(*it);
@@ -461,11 +461,11 @@ class pro_scheduler : public scheduler_unit {
 		}
 
 	private:
-		unsigned** m_cta_num_inst;
-		unsigned** m_cta_warp_exit;
-		unsigned** m_cta_warp_barr;
-		bool** m_cta_barr;
-		bool** m_cta_exit;
+		unsigned* m_cta_num_inst;
+		unsigned* m_cta_warp_exit;
+		unsigned* m_cta_warp_barr;
+		bool* m_cta_barr;
+		bool* m_cta_exit;
 		bool* m_ctas_available;
 		unsigned m_cycles_since_order;
 
@@ -500,13 +500,13 @@ class pro_scheduler : public scheduler_unit {
 						a->get_inst_comp() < b->get_inst_comp();
 				}
 
-				bool cta_inst_comp = m_ps->m_cta_num_inst[0][cta_a] != m_ps->m_cta_num_inst[0][cta_b];
+				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
 
 				if (m_ps->m_ctas_available)
-					return cta_inst_comp ? m_ps->m_cta_num_inst[0][cta_a] > m_ps->m_cta_num_inst[0][cta_b] : 
+					return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : 
 						cta_id_comp;
 				else
-					return cta_inst_comp ? m_ps->m_cta_num_inst[0][cta_a] < m_ps->m_cta_num_inst[0][cta_b] : 
+					return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] < m_ps->m_cta_num_inst[cta_b] : 
 						cta_id_comp;
 			}
 		};
@@ -537,9 +537,9 @@ class pro_scheduler : public scheduler_unit {
 						return a->get_inst_comp() < b->get_inst_comp();
 				}
 
-				bool cta_inst_comp = m_ps->m_cta_num_inst[0][cta_a] != m_ps->m_cta_num_inst[0][cta_b];
+				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
 
-				return cta_inst_comp ? m_ps->m_cta_num_inst[0][cta_a] > m_ps->m_cta_num_inst[0][cta_b] : 
+				return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : 
 					cta_id_comp;
 			}
 		};

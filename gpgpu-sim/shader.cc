@@ -231,7 +231,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
         schedulers[i]->done_adding_supervised_warps();
 		if (schedulers[i]->is_type(CONCRETE_SCHEDULER_PRO)) {
 			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(schedulers[i]);
-			ps->init(&m_cta_num_inst, &m_cta_warp_exit, &m_cta_warp_barr, &m_cta_barr, &m_cta_exit, &m_ctas_available);
+			ps->init(m_cta_num_inst, m_cta_warp_exit, m_cta_warp_barr, m_cta_barr, m_cta_exit, &m_ctas_available);
 		}
     }
 
