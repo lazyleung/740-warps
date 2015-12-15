@@ -29,6 +29,7 @@
 #include "ptx_ir.h"
 #include "ptx.tab.h"
 #include <stdarg.h>
+#include <string>
 
 extern int ptx_error( const char *s );
 extern int ptx_lineno;
@@ -74,6 +75,7 @@ std::list<operand_info> g_operands;
 std::list<int> g_options;
 std::list<int> g_scalar_type;
 loop_info_type g_loop_mark;
+bool g_isLoop = false;
 
 #define PTX_PARSE_DPRINTF(...) \
    if( g_debug_ir_generation ) { \
@@ -143,6 +145,10 @@ void init_directive_state()
 void init_instruction_state()
 {
    PTX_PARSE_DPRINTF("init_instruction_state");
+   if(g_label == NULL) {
+      g_loop_mark = LOOP_NONE;
+      g_isLoop = false;
+    }
    g_pred = NULL;
    g_neg_pred = 0;
    g_pred_mod = -1;
@@ -150,7 +156,6 @@ void init_instruction_state()
    g_opcode = -1;
    g_options.clear();
    g_return_var = operand_info();
-   g_loop_mark = LOOP_NONE;
    init_directive_state();
 }
 
@@ -269,24 +274,29 @@ void add_instruction()
 {
    PTX_PARSE_DPRINTF("add_instruction: %s", ((g_opcode>0)?g_opcode_string[g_opcode]:"<label>") );
    assert( g_shader_core_config != 0 );
-   ptx_instruction *i = new ptx_instruction( g_opcode, 
-                                             g_pred, 
-                                             g_neg_pred,
-                                             g_pred_mod, 
-                                             g_label, 
-                                             g_operands,
-                                             g_return_var,
-                                             g_options, 
-                                             g_scalar_type,
-                                             g_space_spec,
-                                             g_filename,
-                                             ptx_lineno,
-                                             linebuf,
-                                             g_shader_core_config,
-                                             g_loop_mark );
-   g_instructions.push_back(i);
-   g_inst_lookup[g_filename][ptx_lineno] = i;
-   init_instruction_state();
+   if(!g_isLoop) {
+     ptx_instruction *i = new ptx_instruction( g_opcode, 
+                                               g_pred, 
+                                               g_neg_pred,
+                                               g_pred_mod, 
+                                               g_label, 
+                                               g_operands,
+                                               g_return_var,
+                                               g_options, 
+                                               g_scalar_type,
+                                               g_space_spec,
+                                               g_filename,
+                                               ptx_lineno,
+                                               linebuf,
+                                               g_shader_core_config,
+                                               g_loop_mark );
+     g_instructions.push_back(i);
+     g_inst_lookup[g_filename][ptx_lineno] = i;
+     init_instruction_state();
+  } else {
+    g_isLoop = false;
+    init_directive_state();
+  }
 }
 
 void add_variables() 
@@ -601,12 +611,20 @@ void add_scalar_type_spec( int type_spec )
 
 void add_label( const char *identifier ) 
 {
-   PTX_PARSE_DPRINTF("add_label");
-   symbol *s = g_current_symbol_table->lookup(identifier);
-   if ( s != NULL ) {
-      g_label = s;
+   std::string start ("$loop_s");
+   std::string end ("$loop_e");
+   if(start.compare(identifier) == 0) {
+      add_loop_start();
+   } else if (end.compare(identifier) == 0) {
+      add_loop_end();
    } else {
-      g_label = g_current_symbol_table->add_variable(identifier,NULL,0,g_filename,ptx_lineno);
+      PTX_PARSE_DPRINTF("add_label");
+      symbol *s = g_current_symbol_table->lookup(identifier);
+     if ( s != NULL ) {
+        g_label = s;
+     } else {
+        g_label = g_current_symbol_table->add_variable(identifier,NULL,0,g_filename,ptx_lineno);
+     }
    }
 }
 
@@ -958,7 +976,9 @@ void func_header_info_int(const char* a, int b) {} //intentional dummy function
 
 void add_loop_start() {
   PTX_PARSE_DPRINTF("add_loop_start");
+  printf("\n    add_loop_start\n");
   g_loop_mark = LOOP_START;
+  g_isLoop = true;
   // ptx_instruction *i = new ptx_instruction( -1, 
   //                                           NULL, 
   //                                           0,
@@ -979,7 +999,9 @@ void add_loop_start() {
 
 void add_loop_end() {
   PTX_PARSE_DPRINTF("add_loop_end");
+  printf("\n    add_loop_end\n");
   g_loop_mark = LOOP_END;
+  g_isLoop = true;
   // ptx_instruction *i = new ptx_instruction( -1, 
   //                                           NULL, 
   //                                           0,

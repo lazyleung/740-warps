@@ -191,8 +191,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %token  CV_OPTION;
 %token  WB_OPTION;
 %token  WT_OPTION;
-%token	LOOP_START_DIRECTIVE;
-%token	LOOP_END_DIRECTIVE;
 
 %type <int_value> function_decl_header
 %type <ptr_value> function_decl
@@ -381,12 +379,6 @@ literal_list: literal_operand
 instruction_statement:  instruction SEMI_COLON
 	| IDENTIFIER COLON { add_label($1); }    
 	| pred_spec instruction SEMI_COLON;
-	| loop_spec instruction SEMI_COLON;
-	| loop_spec pred_spec instruction SEMI_COLON;
-
-loop_spec: LOOP_START_DIRECTIVE { add_loop_start(); }
-	| LOOP_END_DIRECTIVE { add_loop_end(); }
-	;
 
 instruction: opcode_spec LEFT_PAREN operand RIGHT_PAREN { set_return(); } COMMA operand COMMA LEFT_PAREN operand_list RIGHT_PAREN
 	| opcode_spec operand COMMA LEFT_PAREN operand_list RIGHT_PAREN
