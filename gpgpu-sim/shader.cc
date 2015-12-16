@@ -3234,10 +3234,12 @@ unsigned simt_core_cluster::get_n_active_sms() const
     return n;
 }
 
-unsigned simt_core_cluster::issue_block2core()
+unsigned simt_core_cluster::issue_block2core(unsigned long long gpu_tot_issued_cta, unsigned long long gpu_max_cta_opt)
 {
     unsigned num_blocks_issued=0;
     for( unsigned i=0; i < m_config->n_simt_cores_per_cluster; i++ ) {
+		if (gpu_max_cta_opt && (gpu_tot_issued_cta + num_blocks_issued >= gpu_max_cta_opt))
+			break;
         unsigned core = (i+m_cta_issue_next_core+1)%m_config->n_simt_cores_per_cluster;
         if( m_core[core]->get_not_completed() == 0 ) {
             if( m_core[core]->get_kernel() == NULL ) {
