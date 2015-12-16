@@ -1918,7 +1918,7 @@ public:
     void icnt_cycle();
 
     void reinit();
-    unsigned issue_block2core();
+    unsigned issue_block2core(unsigned long long gpu_tot_issued_cta, unsigned long long gpu_max_cta_opt);
     void cache_flush();
     bool icnt_injection_buffer_full(unsigned size, bool write);
     void icnt_inject_request_packet(class mem_fetch *mf);
