@@ -1990,7 +1990,7 @@ void shader_core_ctx::register_cta_thread_exit( unsigned cta_num )
           m_kernel->dec_running();
           printf("GPGPU-Sim uArch: Shader %u empty (release kernel %u \'%s\').\n", m_sid, m_kernel->get_uid(),
                  m_kernel->name().c_str() );
-          if( m_kernel->no_more_ctas_to_run() ) {
+          if( m_kernel->no_more_ctas_to_run() || m_gpu->max_cta_check(0) ) {
               if( !m_kernel->running() ) {
                   printf("GPGPU-Sim uArch: GPU detected kernel \'%s\' finished on shader %u.\n", m_kernel->name().c_str(), m_sid );
                   m_gpu->set_kernel_done( m_kernel );
@@ -3291,10 +3291,12 @@ unsigned simt_core_cluster::get_n_active_sms() const
     return n;
 }
 
-unsigned simt_core_cluster::issue_block2core()
+unsigned simt_core_cluster::issue_block2core(unsigned long long gpu_tot_issued_cta, unsigned long long gpu_max_cta_opt)
 {
     unsigned num_blocks_issued=0;
     for( unsigned i=0; i < m_config->n_simt_cores_per_cluster; i++ ) {
+		if (gpu_max_cta_opt && (gpu_tot_issued_cta + num_blocks_issued >= gpu_max_cta_opt))
+			break;
         unsigned core = (i+m_cta_issue_next_core+1)%m_config->n_simt_cores_per_cluster;
         if( m_core[core]->get_not_completed() == 0 ) {
             if( m_core[core]->get_kernel() == NULL ) {
