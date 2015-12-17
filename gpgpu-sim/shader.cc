@@ -466,6 +466,12 @@ void shader_core_stats::print( FILE* fout ) const
 
    fprintf(fout, "gpu_reg_bank_conflict_stalls = %d\n", gpu_reg_bank_conflict_stalls);
 
+	// memory divergence stats
+	fprintf(fout, "Memory Divergence Statistics:\n");
+	fprintf(fout, "load/store instructions: %u\n", m_load_exec);
+	for (unsigned i = 0; i < m_config->warp_size; i++) 
+		fprintf(fout, "%uI: %u\t", i, m_load_count[i]);
+
    fprintf(fout, "Warp Occupancy Distribution:\n");
    fprintf(fout, "Stall:%d\t", shader_cycle_distro[2]);
    fprintf(fout, "W0_Idle:%d\t", shader_cycle_distro[0]);
@@ -712,6 +718,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id(), (void*)scheduler ); // dynamic instruction information
     m_stats->shader_cycle_distro[2+(*pipe_reg)->active_count()]++;
     func_exec_inst( **pipe_reg );
+	m_stats->count_mem_divergence((*pipe_reg)->accessq_count());
     if( next_inst->op == BARRIER_OP ){
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
         m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
@@ -2182,7 +2189,7 @@ void shader_core_ctx::register_cta_thread_exit( unsigned cta_num )
           m_kernel->dec_running();
           printf("GPGPU-Sim uArch: Shader %u empty (release kernel %u \'%s\').\n", m_sid, m_kernel->get_uid(),
                  m_kernel->name().c_str() );
-          if( m_kernel->no_more_ctas_to_run() ) {
+          if( m_kernel->no_more_ctas_to_run() || m_gpu->max_cta_check(0) ) {
               if( !m_kernel->running() ) {
                   printf("GPGPU-Sim uArch: GPU detected kernel \'%s\' finished on shader %u.\n", m_kernel->name().c_str(), m_sid );
                   m_gpu->set_kernel_done( m_kernel );
@@ -3483,10 +3490,12 @@ unsigned simt_core_cluster::get_n_active_sms() const
     return n;
 }
 
-unsigned simt_core_cluster::issue_block2core()
+unsigned simt_core_cluster::issue_block2core(unsigned long long gpu_tot_issued_cta, unsigned long long gpu_max_cta_opt)
 {
     unsigned num_blocks_issued=0;
     for( unsigned i=0; i < m_config->n_simt_cores_per_cluster; i++ ) {
+		if (gpu_max_cta_opt && (gpu_tot_issued_cta + num_blocks_issued >= gpu_max_cta_opt))
+			break;
         unsigned core = (i+m_cta_issue_next_core+1)%m_config->n_simt_cores_per_cluster;
         if( m_core[core]->get_not_completed() == 0 ) {
             if( m_core[core]->get_kernel() == NULL ) {

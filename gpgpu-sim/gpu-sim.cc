@@ -489,7 +489,7 @@ bool gpgpu_sim::can_start_kernel()
 bool gpgpu_sim::get_more_cta_left() const
 { 
    if (m_config.gpu_max_cta_opt != 0) {
-      if( m_total_cta_launched >= m_config.gpu_max_cta_opt )
+      if( gpu_tot_issued_cta/* + m_total_cta_launched*/ >= m_config.gpu_max_cta_opt )
           return false;
    }
    for(unsigned n=0; n < m_running_kernels.size(); n++ ) {
@@ -661,7 +661,7 @@ bool gpgpu_sim::active()
        return false;
     if (m_config.gpu_max_insn_opt && (gpu_tot_sim_insn + gpu_sim_insn) >= m_config.gpu_max_insn_opt) 
        return false;
-    if (m_config.gpu_max_cta_opt && (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt) )
+    if (m_config.gpu_max_cta_opt && (gpu_tot_issued_cta /*+ m_total_cta_launched */>= m_config.gpu_max_cta_opt) )
        return false;
     if (m_config.gpu_deadlock_detect && gpu_deadlock) 
        return false;
@@ -720,6 +720,7 @@ void gpgpu_sim::update_stats() {
     m_memory_stats->memlatstat_lat_pw();
     gpu_tot_sim_cycle += gpu_sim_cycle;
     gpu_tot_sim_insn += gpu_sim_insn;
+	gpu_tot_issued_cta += m_total_cta_launched;
 }
 
 void gpgpu_sim::print_stats()
@@ -773,6 +774,21 @@ void gpgpu_sim::deadlock_check()
       fflush(stdout);
       abort();
    }
+}
+
+bool gpgpu_sim::max_cta_check(bool updated)
+{
+	if (m_config.gpu_max_cta_opt) {
+		if (updated)
+			return gpu_tot_issued_cta >= m_config.gpu_max_cta_opt;
+		else
+			return gpu_tot_issued_cta + m_total_cta_launched >= m_config.gpu_max_cta_opt;
+//		if (gpu_tot_issued_cta + m_total_cta_launched >= m_config.gpu_max_cta_opt) ) {
+       //printf("Max CTA # Reached at %llu\n", gpu_tot_issued_cta + m_total_cta_launched);
+       //fflush(stdout);
+			return true;
+	}
+	return false;
 }
 
 /// printing the names and uids of a set of executed kernels (usually there is only one)
@@ -892,9 +908,7 @@ void gpgpu_sim::gpu_print_stat()
    printf("gpu_tot_sim_cycle = %lld\n", gpu_tot_sim_cycle+gpu_sim_cycle);
    printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn+gpu_sim_insn);
    printf("gpu_tot_ipc = %12.4f\n", (float)(gpu_tot_sim_insn+gpu_sim_insn) / (gpu_tot_sim_cycle+gpu_sim_cycle));
-   printf("gpu_tot_issued_cta = %lld\n", gpu_tot_issued_cta);
-
-
+   printf("gpu_tot_issued_cta = %lld\n", gpu_tot_issued_cta + m_total_cta_launched);
 
    // performance counter for stalls due to congestion.
    printf("gpu_stall_dramfull = %d\n", gpu_stall_dramfull);
@@ -1144,12 +1158,16 @@ void gpgpu_sim::issue_block2core()
     unsigned last_issued = m_last_cluster_issue; 
     for (unsigned i=0;i<m_shader_config->n_simt_clusters;i++) {
         unsigned idx = (i + last_issued + 1) % m_shader_config->n_simt_clusters;
-        unsigned num = m_cluster[idx]->issue_block2core();
+        unsigned num = m_cluster[idx]->issue_block2core(gpu_tot_issued_cta + m_total_cta_launched, m_config.gpu_max_cta_opt);
         if( num ) {
             m_last_cluster_issue=idx;
             m_total_cta_launched += num;
+			//gpu_tot_issued_cta += m_total_cta_launched;
+			//gpu_tot_issued_cta += num;
+			//printf("issued %u ctas\n", num);
         }
     }
+    //gpu_tot_issued_cta += m_total_cta_launched;
 }
 
 unsigned long long g_single_step=0; // set this in gdb to single step the pipeline
@@ -1250,7 +1268,8 @@ void gpgpu_sim::cycle()
       }
 #endif
 
-      issue_block2core();
+	if (!max_cta_check(0))
+      	issue_block2core();
       
       // Depending on configuration, flush the caches once all of threads are completed.
       int all_threads_complete = 1;
