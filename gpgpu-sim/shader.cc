@@ -1012,8 +1012,8 @@ void daws_scheduler::order_warps() {
 			struct cache_footprint footprint = cache_footprint_pred_table[warp_id];
 
 			// check for blocked warps, attempt to enter again
-			if (footprint.pc_loop_s && !footprint.active) {
-				warp_enter(warp_id, footprint.pc_loop_s, footprint.n_active);
+			if (footprint.pc_loop && !footprint.active) {
+				warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
 				if (cache_footprint_pred_table[warp_id].active)
 					it++;
 				else
