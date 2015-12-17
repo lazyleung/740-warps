@@ -1130,7 +1130,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 
 	// calculate load prediction
 	for (auto it = static_load_class_table.begin(); it != static_load_class_table.end(); it++) {
-		if ((*it).second.pc_loop == pc_loop) {
+		if ((*it).second.pc_loop == pc_loop_s) {
 			if (act_rep_ids.find((*it).second.rep_id) == act_rep_ids.end()) {
 				if ((*it).second.diverged)
 					load += n_active;
@@ -1153,10 +1153,10 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 		// check whether to set as sampling warp
 		if (!sampling_warp_table[warp_id].pc_loop && (n_active >= 2)) {
 			for (auto it = sampling_warp_table.begin(); it != sampling_warp_table.end(); it++) {
-				if ((*it).pc_loop == pc_loop)
+				if ((*it).pc_loop == pc_loop_s)
 					return;
 			}
-			sampling_warp_table[warp_id] = (struct loop_sample){pc_loop, 0};
+			sampling_warp_table[warp_id] = (struct loop_sample){pc_loop_s, 0};
 		}
 	}
 }
