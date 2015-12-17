@@ -1969,6 +1969,10 @@ public:
 		if (!m_cta_warp_barr[cta])
 			m_cta_barr[cta] = false;
 	}
+	void clear_barrier_op(unsigned cta) {
+		m_cta_warp_barr[cta] = 0;
+		m_cta_barr[cta] = false;
+	}
 	void set_ctas_available(bool more_cta_left) {
 		m_ctas_available = more_cta_left;
 	}

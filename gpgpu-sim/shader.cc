@@ -734,7 +734,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 		inc_barrier_op(m_warp[warp_id].get_cta_id());
     }else if( next_inst->op == MEMORY_BARRIER_OP ){
         m_warp[warp_id].set_membar();
-		inc_barrier_op(m_warp[warp_id].get_cta_id());
+		//inc_barrier_op(m_warp[warp_id].get_cta_id());
     }
 
     updateSIMTStack(warp_id,*pipe_reg);
@@ -1319,8 +1319,8 @@ void shader_core_ctx::writeback()
         m_operand_collector.writeback(*pipe_reg);
         unsigned warp_id = pipe_reg->warp_id();
         m_scoreboard->releaseRegisters( pipe_reg );
-		if ((pipe_reg->op == BARRIER_OP) || (pipe_reg->op == MEMORY_BARRIER_OP)) 
-			dec_barrier_op(m_warp[warp_id].get_cta_id());
+		//if ((pipe_reg->op == BARRIER_OP)/* || (pipe_reg->op == MEMORY_BARRIER_OP)*/) 
+			//dec_barrier_op(m_warp[warp_id].get_cta_id());
         m_warp[warp_id].dec_inst_in_pipeline();
         warp_inst_complete(*pipe_reg);
         m_gpu->gpu_sim_insn_last_update_sid = m_sid;
@@ -2692,6 +2692,8 @@ void barrier_set_t::warp_reaches_barrier(unsigned cta_id,unsigned warp_id,warp_i
    if(bar_count==(unsigned)-1){
 	   if( at_barrier == active ) {
 		   // all warps have reached barrier, so release waiting warps...
+		   m_shader->clear_barrier_op(cta_id);
+
 		   m_bar_id_to_warps[bar_id] &= ~at_barrier;
 		   m_warp_at_barrier &= ~at_barrier;
 		   if(bar_type==RED){
@@ -2702,6 +2704,8 @@ void barrier_set_t::warp_reaches_barrier(unsigned cta_id,unsigned warp_id,warp_i
 	  // TODO: check on the hardware if the count should include warp that exited
 	  if ((at_barrier.count() * m_warp_size) == bar_count){
 		   // required number of warps have reached barrier, so release waiting warps...
+		   m_shader->clear_barrier_op(cta_id);
+
 		   m_bar_id_to_warps[bar_id] &= ~at_barrier;
 		   m_warp_at_barrier &= ~at_barrier;
 		   if(bar_type==RED){
