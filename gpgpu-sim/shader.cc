@@ -726,7 +726,7 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 		if ((*pipe_reg)->get_loop_mark() == LOOP_START)
 			daws->warp_enter(warp_id, pc, (*pipe_reg)->active_count());
 		else if ((*pipe_reg)->get_loop_mark() == LOOP_END)
-			daws->warp_exit(warp_id, (*pipe_reg)->active_count());
+			daws->warp_exit(warp_id, pc, (*pipe_reg)->active_count());
 		else if ((*pipe_reg)->is_load() && 
 				(((*pipe_reg)->space.get_type() == global_space) || 
 				((*pipe_reg)->space.get_type() == local_space) || 
@@ -1012,8 +1012,8 @@ void daws_scheduler::order_warps() {
 			struct cache_footprint footprint = cache_footprint_pred_table[warp_id];
 
 			// check for blocked warps, attempt to enter again
-			if (footprint.pc_loop && !footprint.active) {
-				warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
+			if (footprint.pc_loop_s && !footprint.active) {
+				warp_enter(warp_id, footprint.pc_loop_s, footprint.n_active);
 				if (cache_footprint_pred_table[warp_id].active)
 					it++;
 				else
@@ -1103,21 +1103,26 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 	}
 }
 
-void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_active) {
+void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n_active) {
 	std::set<unsigned> act_rep_ids;
 	unsigned load = 0;
 
-	// somehow group inner loops into outer loop prediction
+	// group inner loops into outer loop prediction (loads associated with outer loop)
 
 	// clear loop load repetition data for warp
-	if (cache_footprint_pred_table[warp_id].active && 
-			(pc_loop == cache_footprint_pred_table[warp_id].pc_loop)) {
-		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
-			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
-				if ((*it).pc_load && ((*it).warp_id == warp_id)) {
-					intraloop_rep_detector.erase(it);
-					intraloop_rep_detector.push_back((struct loop_load_rep){0, 0, 0});
-					it--;
+	if (cache_footprint_pred_table[warp_id].active) {
+		if (pc_loop_s != cache_footprint_pred_table[warp_id].pc_loop_s) {
+			cache_footprint_pred_table[warp_id].level++;
+			return;
+		}
+		else {
+			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
+				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
+					if ((*it).pc_load && ((*it).warp_id == warp_id)) {
+						intraloop_rep_detector.erase(it);
+						intraloop_rep_detector.push_back((struct loop_load_rep){0, 0, 0});
+						it--;
+					}
 				}
 			}
 		}
@@ -1136,7 +1141,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 			}
 		}
 	}
-	cache_footprint_pred_table[warp_id] = (struct cache_footprint){pc_loop, load, n_active, false};
+	cache_footprint_pred_table[warp_id] = (struct cache_footprint){pc_loop_s, load, n_active, 0, false};
 	
 	// determine whether warp may enter loop
 	unsigned tot_load = m_shader->get_cur_cache_load() + load;
@@ -1156,17 +1161,44 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_a
 	}
 }
 
-void daws_scheduler::warp_exit(unsigned warp_id, unsigned n_active) {
+void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active) {
+	// check if exited outer loop
+	std::unordered_map<unsigned, unsigned>::iterator bnd_iter;
+	if ((bnd_iter = loop_bnds.find(cache_footprint_pred_table[warp_id].pc_loop) == loop_bnds.end()) {
+		if (!cache_footprint_pred_table[warp_id].level)
+			loop_bnds[cache_footprint_pred_table[warp_id].pc_loop] = pc_loop_e;
+		else {
+			cache_footprint_pred_table[warp_id].level--;	
+			return;
+		}
+	}
+	else if ((*bnd_iter).second != pc_loop) {
+		cache_footprint_pred_table[warp_id].level--;
+		return;	
+	}
+
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_id].prediction);
 
 	// check if warp still has threads in loop
 	if (n_active < cache_footprint_pred_table[warp_id].n_active) {
 		n_active = cache_footprint_pred_table[warp_id].n_active - n_active;
+		cache_footprint_pred_table[warp_Id].active = false;
 		warp_enter(warp_id, cache_footprint_pred_table[warp_id].pc_loop, n_active);
 	}
 	else {
-		cache_footprint_pred_table[warp_id] = (struct cache_footprint){0, 0, 0, false};
+		cache_footprint_pred_table[warp_id] = (struct cache_footprint){0, 0, 0, 0, false};
 		n_active = 0;
+
+		// clear intraloop rep data
+		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
+			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
+				if ((*it).pc_load && ((*it).warp_id == warp_id)) {
+					intraloop_rep_detector.erase(it);
+					intraloop_rep_detector.push_back((struct loop_load_rep){0, 0, 0});
+					it--;
+				}
+			}
+		}
 	}
 
 	// check if sampling

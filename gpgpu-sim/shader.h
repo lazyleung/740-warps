@@ -473,10 +473,13 @@ public:
 	void check_load(unsigned warp_id, unsigned pc_load, new_addr_type address, unsigned n_active, unsigned n_access);
 
 	// functions to indicate entry/exit of a loop
-	void warp_enter(unsigned warp_id, unsigned pc_loop, unsigned n_active);
-	void warp_exit(unsigned warp_id, unsigned n_active);
+	void warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n_active);
+	void warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active);
 
 private:
+	// key is pc_loop_s
+	std::unordered_map<unsigned, unsigned> loop_bnds;
+
 	struct load_info {
 		unsigned pc_loop;
 		unsigned rep_id;
@@ -489,6 +492,7 @@ private:
 		unsigned pc_loop;
 		unsigned prediction;
 		unsigned n_active;
+		signed level;
 		bool active;
 	};
 	std::vector<struct cache_footprint> cache_footprint_pred_table;
