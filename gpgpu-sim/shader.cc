@@ -1180,12 +1180,8 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_id].prediction);
 
 	// check if warp still has threads in loop
-	if (n_active < cache_footprint_pred_table[warp_id].n_active) {
-		n_active = cache_footprint_pred_table[warp_id].n_active - n_active;
-		cache_footprint_pred_table[warp_id].active = false;
-		warp_enter(warp_id, cache_footprint_pred_table[warp_id].pc_loop, n_active);
-	}
-	else {
+	if ((n_active == cache_footprint_pred_table[warp_id].n_active) || 
+			!cache_footprint_pred_table[warp_id].level) {
 		cache_footprint_pred_table[warp_id] = (struct cache_footprint){0, 0, 0, 0, false};
 		n_active = 0;
 
@@ -1199,6 +1195,11 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 				}
 			}
 		}
+	}
+	else {
+		n_active = cache_footprint_pred_table[warp_id].n_active - n_active;
+		cache_footprint_pred_table[warp_id].active = false;
+		warp_enter(warp_id, cache_footprint_pred_table[warp_id].pc_loop, n_active);
 	}
 
 	// check if sampling
