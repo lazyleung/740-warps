@@ -1164,7 +1164,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active) {
 	// check if exited outer loop
 	std::unordered_map<unsigned, unsigned>::iterator bnd_iter;
-	if ((bnd_iter = loop_bnds.find(cache_footprint_pred_table[warp_id].pc_loop) == loop_bnds.end()) {
+	if ((bnd_iter = loop_bnds.find(cache_footprint_pred_table[warp_id].pc_loop)) == loop_bnds.end()) {
 		if (!cache_footprint_pred_table[warp_id].level)
 			loop_bnds[cache_footprint_pred_table[warp_id].pc_loop] = pc_loop_e;
 		else {
@@ -1182,7 +1182,7 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 	// check if warp still has threads in loop
 	if (n_active < cache_footprint_pred_table[warp_id].n_active) {
 		n_active = cache_footprint_pred_table[warp_id].n_active - n_active;
-		cache_footprint_pred_table[warp_Id].active = false;
+		cache_footprint_pred_table[warp_id].active = false;
 		warp_enter(warp_id, cache_footprint_pred_table[warp_id].pc_loop, n_active);
 	}
 	else {
