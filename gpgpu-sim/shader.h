@@ -512,9 +512,9 @@ private:
 		unsigned warp_id;
 		unsigned pc_load;
 	};
-	std::vector<std::deque<struct loop_load_rep>> intraloop_rep_detector;
+	std::vector<std::vector<struct loop_load_rep>> intraloop_rep_detector;
 
-	std::vector<std::vector<std::deque<signed long long>>> victim_tag_array;
+	std::vector<std::vector<std::vector<signed long long>>> victim_tag_array;
 
 	float assoc_factor;
 	unsigned cache_size, sets, assoc, block_size, next_rep_id;

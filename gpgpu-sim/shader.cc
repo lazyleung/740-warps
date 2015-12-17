@@ -1049,7 +1049,8 @@ void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cac
 		if ((*it) == tag) {
 			locality = true;
 			victim_tag_array[warp_id][set].erase(it);
-			victim_tag_array[warp_id][set].push_front((signed long long)tag);
+			victim_tag_array[warp_id][set].insert(victim_tag_array[warp_id][set].begin(),
+				(signed long long)tag);
 			break;
 		}
 	}
@@ -1057,7 +1058,8 @@ void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cac
 	// add tag to array if not found
 	if ((status == MISS) && !locality) {
 		victim_tag_array[warp_id][set].pop_back();
-		victim_tag_array[warp_id][set].push_front((signed long long)tag);
+		victim_tag_array[warp_id][set].insert(victim_tag_array[warp_id][set].begin(),
+			(signed long long)tag);
 	}
 
 	// update locality counter
@@ -1076,27 +1078,30 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 
 		// get intra-loop repitition information
 		unsigned long long tag = addr / (block_size * sets);
-		unsigned loc_tag = (addr / (8 * block_size)) & 7;
+		unsigned loc_set = (addr / block_size) & 7;
 		unsigned pc_search = 0;
 		unsigned rep_id = 0;
-		for (auto it = intraloop_rep_detector[loc_tag].begin(); it != intraloop_rep_detector[loc_tag].end(); it++) {
-			if (it->tag == tag) {
-				pc_search = (*it).pc_load;
-				intraloop_rep_detector[loc_tag].erase(it);
+		for (auto it = intraloop_rep_detector[loc_set].begin(); it != intraloop_rep_detector[loc_set].end(); it++) {
+			struct loop_load_rep temp = *it;
+			if (temp.pc_load && (temp.tag == tag) && (temp.warp_id == warp_id)) {
+				pc_search = temp.pc_load;
+				intraloop_rep_detector[loc_set].erase(it);
 				auto stat_it = static_load_class_table.find(pc_search);
-				assert (stat_it != static_load_class_table.end());
-				if (!(*stat_it).second.rep_id) {
-					rep_id = next_rep_id++;
-					(*stat_it).second.rep_id = rep_id;
+				if (stat_it != static_load_class_table.end()) {
+					if (!(*stat_it).second.rep_id) {
+						rep_id = next_rep_id++;
+						(*stat_it).second.rep_id = rep_id;
+					}
+					else
+						rep_id = (*stat_it).second.rep_id;
 				}
-				else
-					rep_id = (*stat_it).second.rep_id;
 				break;
 			}
 		}
 		if (!pc_search) 
-			intraloop_rep_detector[loc_tag].pop_back();
-		intraloop_rep_detector[loc_tag].push_front((struct loop_load_rep){tag, warp_id, pc_load});
+			intraloop_rep_detector[loc_set].pop_back();
+		intraloop_rep_detector[loc_set].insert(intraloop_rep_detector[loc_set].begin(), 
+			(struct loop_load_rep){tag, warp_id, pc_load});
 
 		// check static classification table for entry
 		auto stat_it = static_load_class_table.find(pc_load);
@@ -1127,13 +1132,13 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 		}
 		else {
 			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
-				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
-					if ((*it).pc_load && ((*it).warp_id == warp_id)) {
+				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
+					if ((*it).pc_load && ((*it).warp_id == warp_id)) 
 						intraloop_rep_detector[i].erase(it);
-						intraloop_rep_detector[i].push_back((struct loop_load_rep){0, 0, 0});
-						it--;
-					}
+					else 
+						it++;
 				}
+				intraloop_rep_detector[i].resize(8);
 			}
 		}
 	}
@@ -1197,13 +1202,13 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 
 		// clear intraloop rep data
 		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
-			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
-				if ((*it).pc_load && ((*it).warp_id == warp_id)) {
+			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
+				if ((*it).pc_load && ((*it).warp_id == warp_id)) 
 					intraloop_rep_detector[i].erase(it);
-					intraloop_rep_detector[i].push_back((struct loop_load_rep){0, 0, 0});
-					it--;
-				}
+				else
+					it++;
 			}
+			intraloop_rep_detector[i].resize(8);
 		}
 	}
 	else {
