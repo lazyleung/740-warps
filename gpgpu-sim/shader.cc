@@ -1172,7 +1172,7 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 			return;
 		}
 	}
-	else if ((*bnd_iter).second != pc_loop) {
+	else if ((*bnd_iter).second != pc_loop_e) {
 		cache_footprint_pred_table[warp_id].level--;
 		return;	
 	}
