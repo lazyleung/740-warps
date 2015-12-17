@@ -733,6 +733,9 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
 				((*pipe_reg)->space.get_type() == param_space_local))) {
 			daws->check_load(warp_id, pc, (*pipe_reg)->accessq_back().get_addr(), (*pipe_reg)->active_count(), (*pipe_reg)->accessq_count());
 		}
+
+		if (next_inst->op == BARRIER_OP)
+			daws->warp_barr(warp_id);
 	}
 
     updateSIMTStack(warp_id,*pipe_reg);
@@ -1205,6 +1208,11 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 	// check if sampling
 	if (sampling_warp_table[warp_id].pc_loop && (n_active < 2)) 
 		sampling_warp_table[warp_id] = (struct loop_sample){0, 0};
+}
+
+void daws_scheduler::warp_barr(unsigned warp_id) {
+	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_id].prediction);
+	cache_footprint_pred_table[warp_id].prediction = 0;
 }
 
 void

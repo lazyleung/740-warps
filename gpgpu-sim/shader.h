@@ -475,6 +475,7 @@ public:
 	// functions to indicate entry/exit of a loop
 	void warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n_active);
 	void warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active);
+	void warp_barr(unsigned warp_id);
 
 private:
 	// key is pc_loop_s
