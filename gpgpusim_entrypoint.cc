@@ -68,15 +68,17 @@ void *gpgpu_sim_thread_sequential(void*)
 {
    // at most one kernel running at a time
    bool done;
+   //bool halt = false;
    do {
       sem_wait(&g_sim_signal_start);
       done = true;
-      if( g_the_gpu->get_more_cta_left() ) {
+      if( g_the_gpu->get_more_cta_left()/* && !halt*/) {
           done = false;
           g_the_gpu->init();
           while( g_the_gpu->active() ) {
               g_the_gpu->cycle();
               g_the_gpu->deadlock_check();
+              //halt = g_the_gpu->max_cta_check();
           }
           g_the_gpu->print_stats();
           g_the_gpu->update_stats();
@@ -95,6 +97,7 @@ bool g_sim_done = true;
 void *gpgpu_sim_thread_concurrent(void*)
 {
     // concurrent kernel execution simulation thread
+    //bool halt = false;
     do {
        if(g_debug_execution >= 3) {
           printf("GPGPU-Sim: *** simulation thread starting and spinning waiting for work ***\n");
@@ -127,20 +130,30 @@ void *gpgpu_sim_thread_concurrent(void*)
             if(g_stream_manager->operation(&sim_cycles) && !g_the_gpu->active())
                 break;
 
-            if( g_the_gpu->active() ) {
+            if( g_the_gpu->active()/* && !halt*/) {
                 g_the_gpu->cycle();
                 sim_cycles = true;
                 g_the_gpu->deadlock_check();
+                //halt = g_the_gpu->max_cta_check();
             }
+
             active=g_the_gpu->active() || !g_stream_manager->empty_protected();
-        } while( active );
+        } while( active /*&& !halt*/);
         if(g_debug_execution >= 3) {
            printf("GPGPU-Sim: ** STOP simulation thread (no work) **\n");
            fflush(stdout);
         }
         if(sim_cycles) {
+	   		//if(halt) {
+	    	g_the_gpu->print_stats();
+            //}
             g_the_gpu->update_stats();
             print_simulation_time();
+	    	/*if(halt) {
+	    	    abort();
+	    	}*/
+			if (g_the_gpu->max_cta_check(1))
+				abort();
         }
         pthread_mutex_lock(&g_sim_lock);
         g_sim_active = false;
