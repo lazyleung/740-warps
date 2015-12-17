@@ -1111,7 +1111,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 
 	// clear loop load repetition data for warp
 	if (cache_footprint_pred_table[warp_id].active) {
-		if (pc_loop_s != cache_footprint_pred_table[warp_id].pc_loop_s) {
+		if (pc_loop_s != cache_footprint_pred_table[warp_id].pc_loop) {
 			cache_footprint_pred_table[warp_id].level++;
 			return;
 		}
