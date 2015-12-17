@@ -1119,8 +1119,8 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
 					if ((*it).pc_load && ((*it).warp_id == warp_id)) {
-						intraloop_rep_detector.erase(it);
-						intraloop_rep_detector.push_back((struct loop_load_rep){0, 0, 0});
+						intraloop_rep_detector[i].erase(it);
+						intraloop_rep_detector[i].push_back((struct loop_load_rep){0, 0, 0});
 						it--;
 					}
 				}
@@ -1193,8 +1193,8 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); it++) {
 				if ((*it).pc_load && ((*it).warp_id == warp_id)) {
-					intraloop_rep_detector.erase(it);
-					intraloop_rep_detector.push_back((struct loop_load_rep){0, 0, 0});
+					intraloop_rep_detector[i].erase(it);
+					intraloop_rep_detector[i].push_back((struct loop_load_rep){0, 0, 0});
 					it--;
 				}
 			}
