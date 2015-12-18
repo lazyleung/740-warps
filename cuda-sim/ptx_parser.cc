@@ -611,8 +611,8 @@ void add_scalar_type_spec( int type_spec )
 
 void add_label( const char *identifier ) 
 {
-   std::string start ("$loop_s");
-   std::string end ("$loop_e");
+   char *start = "$loop_s";
+   char *end  = "$loop_e";
    if(strncmp(start, identifier, 7) == 0) {
       add_loop_start();
    } else if (strncmp(end, identifier, 7) == 0) {
