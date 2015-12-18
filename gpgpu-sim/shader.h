@@ -444,6 +444,7 @@ public:
 	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {}
 
 	void init(const unsigned max_warps, const int max_sched, cache_config m_L1D_config) {
+		num_sched = max_sched;
 		cache_footprint_pred_table.resize(max_warps / max_sched);
 		sampling_warp_table.resize(max_warps / max_sched);
 		intraloop_rep_detector.resize(8);
@@ -517,7 +518,7 @@ private:
 	std::vector<std::vector<std::vector<signed long long>>> victim_tag_array;
 
 	float assoc_factor;
-	unsigned cache_size, sets, assoc, block_size, next_rep_id;
+	unsigned cache_size, sets, assoc, block_size, next_rep_id, num_sched;
 };
 
 class two_level_active_scheduler : public scheduler_unit {

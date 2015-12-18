@@ -1019,7 +1019,7 @@ void daws_scheduler::order_warps() {
 		std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
 		while (it != m_next_cycle_prioritized_warps.end()) {
 			unsigned warp_id = (*it)->get_warp_id();
-			unsigned warp_idx = warp_id / m_shader->schedulers.size();
+			unsigned warp_idx = warp_id / num_sched;
 			struct cache_footprint footprint = cache_footprint_pred_table[warp_idx];
 
 			// check for blocked warps, attempt to enter again
@@ -1040,7 +1040,7 @@ void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cac
 	if ((status != HIT) || (status != MISS) || (status != HIT_RESERVED))
 		return;
 
-	unsigned warp_idx = warp_id / m_shader->schedulers.size();
+	unsigned warp_idx = warp_id / num_sched;
 
 	// check victim tag array to assess locality
 	bool locality = false;
@@ -1071,7 +1071,7 @@ void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cac
 }
 
 void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_type addr, unsigned n_active, unsigned n_access) {
-	unsigned warp_idx = warp_id / m_shader->schedulers.size();
+	unsigned warp_idx = warp_id / num_sched;
 	if (sampling_warp_table[warp_idx].locality > 0) {
 		// get divergence information
 		signed div_chk = n_active > 2 ? (n_access > 2 ? 1 : -1) : 0;
@@ -1124,7 +1124,7 @@ void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_typ
 
 void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n_active) {
 	std::set<unsigned> act_rep_ids;
-	unsigned load = 0, warp_idx = warp_id / m_shader->schedulers.size();
+	unsigned load = 0, warp_idx = warp_id / num_sched;
 
 	// group inner loops into outer loop prediction (loads associated with outer loop)
 
@@ -1181,7 +1181,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 }
 
 void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active) {
-	unsigned warp_idx = warp_id / m_shader->schedulers.size();
+	unsigned warp_idx = warp_id / num_sched;
 
 	// check if exited outer loop
 	std::unordered_map<unsigned, unsigned>::iterator bnd_iter;
@@ -1229,7 +1229,7 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 }
 
 void daws_scheduler::warp_barr(unsigned warp_id) {
-	unsigned warp_idx = warp_id / m_shader->schedulers.size();
+	unsigned warp_idx = warp_id / num_sched;
 
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
 	cache_footprint_pred_table[warp_idx].prediction = 0;
