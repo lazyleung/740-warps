@@ -611,11 +611,11 @@ void add_scalar_type_spec( int type_spec )
 
 void add_label( const char *identifier ) 
 {
-   std::string start ("$loop_s");
-   std::string end ("$loop_e");
-   if(start.compare(identifier) == 0) {
+   char *start = "$loop_s";
+   char *end  = "$loop_e";
+   if(strncmp(start, identifier, 7) == 0) {
       add_loop_start();
-   } else if (end.compare(identifier) == 0) {
+   } else if (strncmp(end, identifier, 7) == 0) {
       add_loop_end();
    } else {
       PTX_PARSE_DPRINTF("add_label");
