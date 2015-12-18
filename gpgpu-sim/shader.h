@@ -445,7 +445,7 @@ public:
 
 	void init(const unsigned max_warps, const int max_sched, cache_config m_L1D_config) {
 		cache_footprint_pred_table.resize(max_warps / max_sched);
-		sampling_warp_table.resize(16);
+		sampling_warp_table.resize(max_warps / max_sched);
 		intraloop_rep_detector.resize(8);
 		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 			intraloop_rep_detector[i].resize(8);
