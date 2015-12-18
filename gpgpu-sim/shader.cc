@@ -1130,10 +1130,8 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 
 	// clear loop load repetition data for warp
 	if (cache_footprint_pred_table[warp_idx].active) {
-		if (pc_loop_s != cache_footprint_pred_table[warp_idx].pc_loop) {
+		if (pc_loop_s != cache_footprint_pred_table[warp_idx].pc_loop) 
 			cache_footprint_pred_table[warp_idx].level++;
-			return;
-		}
 		else {
 			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
@@ -1145,6 +1143,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 				intraloop_rep_detector[i].resize(8);
 			}
 		}
+		return;
 	}
 
 	// calculate load prediction
@@ -1164,7 +1163,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 	
 	// determine whether warp may enter loop
 	unsigned tot_load = m_shader->get_cur_cache_load() + load;
-	if ((load > cache_size) || (tot_load <= cache_size)) {
+	if ((load > cache_size) || (tot_load <= cache_size) || (m_shader->get_cur_cache_load() > cache_size)) {
 		m_shader->set_cur_cache_load(tot_load);
 		if (tot_load <= cache_size) 
 			cache_footprint_pred_table[warp_idx].active = true;
