@@ -37,7 +37,7 @@
 
 #include "addrdec.h"
 
-#define CRITICAL_LINES 8
+#define CRITICAL_LINES 64
 
 enum cache_block_state {
     INVALID,
