@@ -1855,7 +1855,7 @@ public:
 		return m_cur_cache_load;
 	}
 	void set_cur_cache_load(unsigned new_load) {
-		m_cur_cache_load += new_load;
+		m_cur_cache_load = new_load;
 	}
 	unsigned get_max_cache_load() {
 		return m_max_cache_load;

@@ -1147,11 +1147,8 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 				intraloop_rep_detector[i].resize(8);
 			}
 			
-			// check if active threads changed (new prediction)
-			if (n_active == cache_footprint_pred_table[warp_idx].n_active) {
-				m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() + cache_footprint_pred_table[warp_idx].prediction);
-				return;
-			}
+			// clear current prediction
+			m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
 		}
 	}
 
@@ -1174,8 +1171,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 	unsigned tot_load = m_shader->get_cur_cache_load() + load;
 	if ((load > cache_size) || (tot_load <= cache_size) || (m_shader->get_cur_cache_load() > cache_size)) {
 		m_shader->set_cur_cache_load(tot_load);
-		if (tot_load <= cache_size) 
-			cache_footprint_pred_table[warp_idx].active = true;
+		cache_footprint_pred_table[warp_idx].active = true;
 
 		// check whether to set as sampling warp
 		if (!sampling_warp_table[warp_idx].pc_loop && (n_active >= 2)) {
@@ -1210,41 +1206,34 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 	}
 
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
+	cache_footprint_pred_table[warp_idx] = (struct cache_footprint){0, 0, 0, 0, false};
 
-	// check if warp still has threads in loop
-	if ((n_active == cache_footprint_pred_table[warp_idx].n_active) || 
-			!cache_footprint_pred_table[warp_idx].level) {
-		cache_footprint_pred_table[warp_idx] = (struct cache_footprint){0, 0, 0, 0, false};
-		n_active = 0;
-
-		// clear intraloop rep data
-		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
-			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
-				if ((*it).pc_load && ((*it).warp_id == warp_id)) 
-					it = intraloop_rep_detector[i].erase(it);
-				else
-					it++;
-			}
-			intraloop_rep_detector[i].resize(8);
+	// clear intraloop rep data
+	for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
+		for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
+			if ((*it).pc_load && ((*it).warp_id == warp_id)) 
+				it = intraloop_rep_detector[i].erase(it);
+			else
+				it++;
 		}
-	}
-	else {
-		n_active = cache_footprint_pred_table[warp_idx].n_active - n_active;
-		//cache_footprint_pred_table[warp_idx].active = false;
-		warp_enter(warp_id, cache_footprint_pred_table[warp_idx].pc_loop, n_active);
+		intraloop_rep_detector[i].resize(8);
 	}
 
 	// check if sampling
-	if (sampling_warp_table[warp_idx].pc_loop && (n_active < 2)) 
+	if (sampling_warp_table[warp_idx].pc_loop) 
 		sampling_warp_table[warp_idx] = (struct loop_sample){0, 0};
 }
 
 void daws_scheduler::warp_barr(unsigned warp_id) {
 	unsigned warp_idx = warp_id / num_sched;
 
+	if (!cache_footprint_pred_table[warp_idx].active)
+		return;
+
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
 	cache_footprint_pred_table[warp_idx].prediction = 0;
 	cache_footprint_pred_table[warp_idx].pc_loop = 0;
+	cache_footprint_pred_table[warp_idx].active = false;
 	if (sampling_warp_table[warp_idx].pc_loop)
 		sampling_warp_table[warp_idx] = (struct loop_sample){0, 0};
 }
