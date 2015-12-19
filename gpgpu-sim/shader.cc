@@ -1130,8 +1130,10 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 
 	// clear loop load repetition data for warp
 	if (cache_footprint_pred_table[warp_idx].active) {
-		if (pc_loop_s != cache_footprint_pred_table[warp_idx].pc_loop) 
+		if (pc_loop_s != cache_footprint_pred_table[warp_idx].pc_loop) { 
 			cache_footprint_pred_table[warp_idx].level++;
+			return;
+		}
 		else {
 			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
@@ -1142,8 +1144,13 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 				}
 				intraloop_rep_detector[i].resize(8);
 			}
+			
+			// check if active threads changed (new prediction)
+			if (n_active == cache_footprint_pred_table[warp_idx].n_active) {
+				m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() + cache_footprint_pred_table[warp_idx].prediction);
+				return;
+			}
 		}
-		return;
 	}
 
 	// calculate load prediction
@@ -1218,7 +1225,7 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 	}
 	else {
 		n_active = cache_footprint_pred_table[warp_idx].n_active - n_active;
-		cache_footprint_pred_table[warp_idx].active = false;
+		//cache_footprint_pred_table[warp_idx].active = false;
 		warp_enter(warp_id, cache_footprint_pred_table[warp_idx].pc_loop, n_active);
 	}
 
