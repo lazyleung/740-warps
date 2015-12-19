@@ -467,16 +467,16 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
         m_miss++;
         shader_cache_access_log(m_core_id, m_type_id, 1); // log cache misses
         if ( m_config.m_alloc_policy == ON_MISS ) {
-            if( m_lines[index].m_status == MODIFIED ) {
+            if( m_lines[idx].m_status == MODIFIED ) {
                 wb = true;
-                evicted = m_lines[index];
-                if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == true && m_critical_lines[index]) {
-                    if(CCBP[m_lines[index].signature] > -3) CCBP[m_lines[index].signature]--;
-                } else if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == false) {
-                    SHCT[m_lines[index].signature]--;
+                evicted = m_lines[idx];
+                if (m_lines[idx].c_reuse == false && m_lines[idx].nc_reuse == true && m_critical_lines[idx]) {
+                    if(CCBP[m_lines[idx].signature] > -3) CCBP[m_lines[idx].signature]--;
+                } else if (m_lines[idx].c_reuse == false && m_lines[idx].nc_reuse == false) {
+                    SHCT[m_lines[idx].signature]--;
                 }
             }
-            m_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
+            m_lines[idx].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
         }
         break;
     case RESERVATION_FAIL:
