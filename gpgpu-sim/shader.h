@@ -1565,7 +1565,6 @@ public:
         m_shader_dynamic_warp_issue_distro.resize( config->num_shader() );
         m_shader_warp_slot_issue_distro.resize( config->num_shader() );
 
-		m_loop_s = 0, m_loop_e = 0, m_loop_rs = 0, m_loop_h = 0, m_loop_m = 0, m_loop_p = 0;
 		m_load_exec = 0;
 		memset(m_load_count, 0, sizeof(m_load_count));
     }
@@ -1601,23 +1600,6 @@ public:
         return m_shader_warp_slot_issue_distro;
     }
 
-	void inc_loop_e() {
-		m_loop_e++;
-	}
-	void inc_loop_s() {
-		m_loop_s++;
-	}
-	void inc_loop_rs() {
-		m_loop_rs++;
-	}
-	void inc_entry(unsigned type) {
-		switch (type) {
-			case 0: m_loop_pass++; break;
-			case 1: m_loop_block++; break;
-			case 2: m_loop_high++; break;
-			default: break;
-		}
-	}
 	void count_mem_divergence(unsigned count) {
 		if (count > 0) {
 			m_load_exec++;
@@ -1638,7 +1620,6 @@ private:
     std::vector<unsigned> m_last_shader_warp_slot_issue_distro;
 
 	// memory divergence measure
-	unsigned m_loop_s, m_loop_e, m_loop_rs, m_loop_high, m_loop_block, m_loop_pass;
 	unsigned m_load_exec;
 	unsigned m_load_count[MAX_WARP_SIZE];
 
