@@ -1189,6 +1189,9 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active) {
 	unsigned warp_idx = warp_id / num_sched;
 
+	if (!cache_footprint_pred_table[warp_idx].active)
+		return;
+
 	// check if exited outer loop
 	std::unordered_map<unsigned, unsigned>::iterator bnd_iter;
 	if ((bnd_iter = loop_bnds.find(cache_footprint_pred_table[warp_idx].pc_loop)) == loop_bnds.end()) {
