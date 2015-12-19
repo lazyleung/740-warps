@@ -470,7 +470,7 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
             if( m_lines[index].m_status == MODIFIED ) {
                 wb = true;
                 evicted = m_lines[index];
-                if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == true && idx < CRITICAL_LINES) {
+                if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == true && m_critical_lines[index]) {
                     if(CCBP[m_lines[index].signature] > -3) CCBP[m_lines[index].signature]--;
                 } else if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == false) {
                     SHCT[m_lines[index].signature]--;

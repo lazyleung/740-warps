@@ -448,12 +448,7 @@ public:
 
     unsigned size() const { return m_config.get_num_lines();}
     cache_block_t &get_block(unsigned idx) { 
-        if(idx >= CRITICAL_LINES) {
-            idx = idx - CRITICAL_LINES;
-            return m_lines[idx];
-        } else {
-            return m_critical_lines[idx];
-        }
+        return m_lines[idx];
     }
 
     void flush(); // flash invalidate all entries
