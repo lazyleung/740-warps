@@ -471,6 +471,7 @@ void shader_core_stats::print( FILE* fout ) const
 	fprintf(fout, "load/store instructions: %u\n", m_load_exec);
 	for (unsigned i = 0; i < m_config->warp_size; i++) 
 		fprintf(fout, "%uI: %u\t", i, m_load_count[i]);
+	fprintf(fout, "\nloop_s: %u\tloop_rs: %u\tloop_e: %u\tpass: %u\tblock: %u\thigh: %u\n", m_loop_s, m_loop_rs, m_loop_e, m_loop_pass, m_loop_block, m_loop_high);
 
    fprintf(fout, "Warp Occupancy Distribution:\n");
    fprintf(fout, "Stall:%d\t", shader_cycle_distro[2]);
@@ -1129,6 +1130,8 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 
 	// group inner loops into outer loop prediction (loads associated with outer loop)
 
+	m_stats->inc_loop_s();
+
 	// clear loop load repetition data for warp
 	if (cache_footprint_pred_table[warp_idx].active) {
 		if (pc_loop_s != cache_footprint_pred_table[warp_idx].pc_loop) { 
@@ -1136,6 +1139,7 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 			return;
 		}
 		else {
+			m_stats->inc_loop_rs();
 			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
 					if ((*it).pc_load && ((*it).warp_id == warp_id)) 
