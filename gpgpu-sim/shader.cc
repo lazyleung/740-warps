@@ -1018,26 +1018,27 @@ void daws_scheduler::order_warps() {
 	if (m_shader->get_cur_cache_load() && (m_shader->get_cur_cache_load() <= cache_size)) {
 		std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
 		while (it != m_next_cycle_prioritized_warps.end()) {
-			unsigned warp_id = (*it)->get_warp_id();
-			unsigned warp_idx = warp_id / num_sched;
-			struct cache_footprint footprint = cache_footprint_pred_table[warp_idx];
-
-			// check for blocked warps, attempt to enter again
-			if (footprint.pc_loop && !footprint.active) {
-				warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
-				if (cache_footprint_pred_table[warp_idx].active)
-					it++;
-				else
-					it = m_next_cycle_prioritized_warps.erase(it);
+			if ((*it) && !(*it)->done_exit()) {
+				unsigned warp_id = (*it)->get_warp_id();
+				unsigned warp_idx = warp_id / num_sched;
+				struct cache_footprint footprint = cache_footprint_pred_table[warp_idx];
+	
+				// check for blocked warps, attempt to enter again
+				if (footprint.pc_loop && !footprint.active) {
+					warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
+					if (!cache_footprint_pred_table[warp_idx].active) {
+						it = m_next_cycle_prioritized_warps.erase(it);
+						continue;
+					}
+				}
 			}
-			else
-				it++;
+			it++;
 		}
 	}
 }
 
 void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cache_request_status status) {
-	if ((status != HIT) || (status != MISS) || (status != HIT_RESERVED))
+	if ((status != HIT) && (status != MISS) && (status != HIT_RESERVED))
 		return;
 
 	unsigned warp_idx = warp_id / num_sched;
@@ -1586,6 +1587,7 @@ ldst_unit::process_cache_access( cache_t* cache,
     mem_stage_stall_type result = NO_RC_FAIL;
     bool write_sent = was_write_sent(events);
     bool read_sent = was_read_sent(events);
+	bool check_cache_access = false;
     if( write_sent ) 
         m_core->inc_store_req( inst.warp_id() );
     if ( status == HIT ) {
@@ -1598,6 +1600,8 @@ ldst_unit::process_cache_access( cache_t* cache,
         }
         if( !write_sent ) 
             delete mf;
+
+		check_cache_access = cache == m_L1D;
     } else if ( status == RESERVATION_FAIL ) {
         result = COAL_STALL;
         assert( !read_sent );
@@ -1607,10 +1611,19 @@ ldst_unit::process_cache_access( cache_t* cache,
         assert( status == MISS || status == HIT_RESERVED );
         //inst.clear_active( access.get_warp_mask() ); // threads in mf writeback when mf returns
         inst.accessq_pop_back();
+
+		check_cache_access = cache == m_L1D;
     }
     if( !inst.accessq_empty() )
         result = BK_CONF;
-    return result;
+
+   	// DAWS stuff
+	if (check_cache_access && (((scheduler_unit*)(inst.get_scheduler()))->is_type(CONCRETE_SCHEDULER_DAWS))) {
+		daws_scheduler* daws = dynamic_cast<daws_scheduler*>((scheduler_unit*)(inst.get_scheduler()));
+		daws->cache_access(inst.warp_id(), address, status);
+	}
+
+	return result;
 }
 
 mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, warp_inst_t &inst )
@@ -1622,17 +1635,10 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, war
     if( !cache->data_port_free() ) 
         return DATA_PORT_STALL; 
 
-    const mem_access_t &access = inst.accessq_back();
+    //const mem_access_t &access = inst.accessq_back();
     mem_fetch *mf = m_mf_allocator->alloc(inst,inst.accessq_back());
     std::list<cache_event> events;
     enum cache_request_status status = cache->access(mf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events);
-
-	// DAWS stuff
-	if ((cache == m_L1D) && (((scheduler_unit*)(inst.get_scheduler()))->is_type(CONCRETE_SCHEDULER_DAWS)) &&
-			((status == HIT) || (status == MISS) || (status == HIT_RESERVED))) {
-		daws_scheduler* daws = dynamic_cast<daws_scheduler*>((scheduler_unit*)(inst.get_scheduler()));
-		daws->cache_access(inst.warp_id(), access.get_addr(), status);
-	}
 
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
