@@ -481,7 +481,7 @@ protected:
     cache_config &m_config;
 
     cache_block_t *m_lines; /* nbanks x nset x assoc lines in total */
-    cache_block_t *m_critical_lines;
+    bool *m_critical_lines;
 
     signed *CCBP; 
     signed *SHCT;

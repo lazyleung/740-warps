@@ -263,7 +263,7 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
 
 void tag_array::fill( new_addr_type addr, unsigned time )
 {
-    printf("    FILL TAG ON_FILL\n");
+    //printf("    FILL TAG ON_FILL\n");
     assert( m_config.m_alloc_policy == ON_FILL );
     unsigned idx;
     enum cache_request_status status = probe(addr,idx);
@@ -275,8 +275,8 @@ void tag_array::fill( new_addr_type addr, unsigned time )
 void tag_array::fill( unsigned index, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_MISS );
-    printf("    FILL TAG ON_MISS\n");
-    printf("        FILL %d\n", index);
+    //printf("    FILL TAG ON_MISS\n");
+    //printf("        FILL %d\n", index);
     m_lines[index].fill(time);
 }
 
@@ -334,8 +334,8 @@ cacp_tag_array::cacp_tag_array( cache_config &config,
                       int type_id )
     : m_config( config )
 {
-    m_critical_lines = new cache_block_t[CRITICAL_LINES];
-    m_lines = new cache_block_t[MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines() - CRITICAL_LINES];
+    m_critical_lines = new bool[MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines()];
+    m_lines = new cache_block_t[MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines()];
     //printf("\ncacp_tag_array size %u\n", CRITICAL_LINES);
     //printf("\ncacp_tag_array size %u\n", MAX_DEFAULT_CACHE_SIZE_MULTIBLIER*config.get_num_lines() - CRITICAL_LINES);
     // Signatures are 8 bit
@@ -369,16 +369,13 @@ enum cache_request_status cacp_tag_array::probe(new_addr_type addr, unsigned &id
 
     bool all_reserved = true;
 
+    unsigned SHIP = 0;
+
     // check for hit or pending hit
     for (unsigned way=0; way<m_config.m_assoc; way++) {
         unsigned index = set_index*m_config.m_assoc+way;
-        
-        cache_block_t *line;
-        if(index >= CRITICAL_LINES) {
-            line = &m_lines[index - CRITICAL_LINES];
-        } else {
-            line = &m_critical_lines[index];
-        }
+
+        cache_block_t *line = &m_lines[index];
         
         if (line->m_tag == tag) {
             if ( line->m_status == RESERVED ) {
@@ -401,9 +398,16 @@ enum cache_request_status cacp_tag_array::probe(new_addr_type addr, unsigned &id
             } else {
                 // valid line : keep track of most appropriate replacement candidate
                 if ( m_config.m_replacement_policy == LRU ) {
-                    if ( line->m_last_access_time < valid_timestamp ) {
-                        valid_timestamp = line->m_last_access_time;
-                        valid_line = index;
+                    // SRRIP
+                    if(m_critical_lines[index] == m_critical_lines[set_index]) {
+                        if(line->SHIP > SHIP) {
+                            SHIP = line->SHIP;
+                            valid_timestamp = line->m_last_access_time;
+                            valid_line = index;
+                        } else if(SHIP == 0 && line->m_last_access_time < valid_timestamp ) {
+                            valid_timestamp = line->m_last_access_time;
+                            valid_line = index;
+                        }
                     }
                 } else if ( m_config.m_replacement_policy == FIFO ) {
                     if ( line->m_alloc_time < valid_timestamp ) {
@@ -443,75 +447,36 @@ enum cache_request_status cacp_tag_array::access( new_addr_type addr, unsigned t
     shader_cache_access_log(m_core_id, m_type_id, 0); // log accesses to cache
     enum cache_request_status status = probe(addr,idx);
     
-    unsigned index;
-    bool inCritical;
-    if(idx >= CRITICAL_LINES) {
-        index = idx - CRITICAL_LINES;
-        inCritical = false;
-    } else {
-        index = idx;
-        inCritical = true;
-    }
-
     switch (status) {
     case HIT_RESERVED: 
         m_pending_hit++;
     case HIT:
-        if(inCritical) {
-            m_critical_lines[index].m_last_access_time=time;
-            promotion(m_critical_lines[index]);
-        } else {
-            m_lines[index].m_last_access_time=time;
-            promotion(m_lines[index]);
-        }
+        m_lines[idx].m_last_access_time=time;
+        promotion(m_lines[idx]);
 
-        if(inCritical) {
-            if(isCriticalWarp){
-                m_critical_lines[index].c_reuse = true;
-                if(CCBP[m_critical_lines[index].signature] < 3) CCBP[m_critical_lines[index].signature]++;
-                SHCT[m_critical_lines[index].signature]++;
-            } else {
-                m_critical_lines[index].nc_reuse = true;
-                SHCT[m_critical_lines[index].signature]++;
-            }
+        if(isCriticalWarp){
+            m_lines[idx].c_reuse = true;
+            if(CCBP[m_lines[idx].signature] < 3) CCBP[m_lines[idx].signature]++;
+            SHCT[m_lines[idx].signature]++;
         } else {
-            if(isCriticalWarp){
-                m_lines[index].c_reuse = true;
-                if(CCBP[m_lines[index].signature] < 3) CCBP[m_lines[index].signature]++;
-                SHCT[m_lines[index].signature]++;
-            } else {
-                m_lines[index].nc_reuse = true;
-                SHCT[m_lines[index].signature]++;
-            }
+            m_lines[idx].nc_reuse = true;
+            SHCT[m_lines[idx].signature]++;
         }
         break;
     case MISS:
         m_miss++;
         shader_cache_access_log(m_core_id, m_type_id, 1); // log cache misses
         if ( m_config.m_alloc_policy == ON_MISS ) {
-            if(inCritical){
-                if( m_critical_lines[index].m_status == MODIFIED ) {
-                    wb = true;
-                    evicted = m_critical_lines[index];
-                    if (m_critical_lines[index].c_reuse == false && m_critical_lines[index].nc_reuse == true && idx < CRITICAL_LINES) {
-                        if(CCBP[m_critical_lines[index].signature] > -3) CCBP[m_critical_lines[index].signature]--;
-                    } else if (m_critical_lines[index].c_reuse == false && m_critical_lines[index].nc_reuse == false) {
-                        SHCT[m_critical_lines[index].signature]--;
-                    }
+            if( m_lines[index].m_status == MODIFIED ) {
+                wb = true;
+                evicted = m_lines[index];
+                if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == true && idx < CRITICAL_LINES) {
+                    if(CCBP[m_lines[index].signature] > -3) CCBP[m_lines[index].signature]--;
+                } else if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == false) {
+                    SHCT[m_lines[index].signature]--;
                 }
-                m_critical_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
-            } else {
-                if( m_lines[index].m_status == MODIFIED ) {
-                    wb = true;
-                    evicted = m_lines[index];
-                    if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == true && idx < CRITICAL_LINES) {
-                        if(CCBP[m_lines[index].signature] > -3) CCBP[m_lines[index].signature]--;
-                    } else if (m_lines[index].c_reuse == false && m_lines[index].nc_reuse == false) {
-                        SHCT[m_lines[index].signature]--;
-                    }
-                }
-                m_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
             }
+            m_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc );
         }
         break;
     case RESERVATION_FAIL:
@@ -533,43 +498,36 @@ void cacp_tag_array::fill( new_addr_type addr, unsigned time, address_type pc )
     unsigned index;
     enum cache_request_status status = probe(addr,index);
     assert(status==MISS); // MSHR should have prevented redundant memory request
-    if(index >= CRITICAL_LINES) {
-        index = index - CRITICAL_LINES;
-        m_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc);
-        m_lines[index].fill(time);
-        promotion(m_lines[index]);
+
+    m_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc);
+    if(CCBP[m_lines[index].signature] >= 2) {
+        // Predicted to be a critical line
+        m_critical_lines[index] = true;
     } else {
-        m_critical_lines[index].allocate( m_config.tag(addr), m_config.block_addr(addr), time, pc);
-        m_critical_lines[index].fill(time);
-        promotion(m_critical_lines[index]);
+        m_critical_lines[index] = false;
     }
-    
+    m_lines[index].fill(time);
+    promotion(m_lines[index]); 
 }
 
 void cacp_tag_array::fill( unsigned index, unsigned time )
 {
     assert( m_config.m_alloc_policy == ON_MISS );
     //printf("    FILL ON_MISS\n");
-    if(index >= CRITICAL_LINES) {
-        index = index - CRITICAL_LINES;
-        m_lines[index].fill(time);
-        promotion(m_lines[index]);
+    if(CCBP[m_lines[index].signature] >= 2) {
+        // Predicted to be a critical line
+        m_critical_lines[index] = true;
     } else {
-        m_critical_lines[index].fill(time);
-        promotion(m_critical_lines[index]);
+        m_critical_lines[index] = false;
     }
+    m_lines[index].fill(time);  
+    promotion(m_lines[index]);  
 }
 
 void cacp_tag_array::flush() 
 {
     for (unsigned i=0; i < m_config.get_num_lines(); i++) {
-        unsigned index = i;
-        if(index >= CRITICAL_LINES) {
-            index = index - CRITICAL_LINES;
-            m_lines[index].m_status = INVALID;
-        } else {
-            m_critical_lines[index].m_status = INVALID;
-        }
+        m_lines[i].m_status = INVALID;
     }
 }
 
