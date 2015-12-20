@@ -594,7 +594,7 @@ public:
                     register_set* mem_out,
                     int id,
 					concrete_scheduler type )
-	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {}
+	: pro_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {}
 
 	void init(const unsigned max_warps, const int max_sched, cache_config m_L1D_config) {
 		num_sched = max_sched;

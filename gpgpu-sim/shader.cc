@@ -1060,7 +1060,7 @@ void gto_scheduler::order_warps()
 
 void dapro_scheduler::order_warps() {
 	// by default use GTO scheduling
-	gto_scheduler::order_warps();
+	pro_scheduler::order_warps();
 
 	// check if there is cache load within limits
 	if (m_shader->get_cur_cache_load() && (m_shader->get_cur_cache_load() <= cache_size)) {
