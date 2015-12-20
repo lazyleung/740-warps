@@ -1197,7 +1197,7 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 		//if (!cache_footprint_pred_table[warp_idx].level)
 		//	loop_bnds[cache_footprint_pred_table[warp_idx].pc_loop] = pc_loop_e;
 		//else {
-		if (cache_footprint_pred_table[warp_idx].level)
+		if (cache_footprint_pred_table[warp_idx].level) {
 			cache_footprint_pred_table[warp_idx].level--;	
 			return;
 		}
