@@ -584,7 +584,7 @@ public:
 
 };
 
-class dapro_scheduler : public gto_scheduler {
+class dapro_scheduler : public pro_scheduler {
 public:
 	dapro_scheduler ( shader_core_stats* stats, shader_core_ctx* shader,
                     Scoreboard* scoreboard, simt_stack** simt,
