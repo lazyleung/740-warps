@@ -84,7 +84,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     
     m_sid = shader_id;
     m_tpc = tpc_id;
-
+    
     m_pipeline_reg.reserve(N_PIPELINE_STAGES);
     for (int j = 0; j<N_PIPELINE_STAGES; j++) {
         m_pipeline_reg.push_back(register_set(m_config->pipe_widths[j],pipeline_stage_name_decode[j]));
@@ -132,11 +132,9 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                          sched_config.find("gto") != std::string::npos ?
                                          CONCRETE_SCHEDULER_GTO :
                                          sched_config.find("warp_limiting") != std::string::npos ?
-                                         CONCRETE_SCHEDULER_WARP_LIMITING:
-										 sched_config.find("pro") != std::string::npos ?
-										 CONCRETE_SCHEDULER_PRO :
+                                         CONCRETE_SCHEDULER_WARP_LIMITING :
 										 sched_config.find("daws") != std::string::npos ?
-										 CONCRETE_SCHEDULER_DAPRO :
+										 CONCRETE_SCHEDULER_DAWS :
                                          NUM_CONCRETE_SCHEDULERS;
     assert ( scheduler != NUM_CONCRETE_SCHEDULERS );
     
@@ -146,21 +144,6 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
             case CONCRETE_SCHEDULER_LRR:
                 schedulers.push_back(
                     new lrr_scheduler( m_stats,
-                                       this,
-                                       m_scoreboard,
-                                       m_simt_stack,
-                                       &m_warp,
-                                       &m_pipeline_reg[ID_OC_SP],
-                                       &m_pipeline_reg[ID_OC_SFU],
-                                       &m_pipeline_reg[ID_OC_MEM],
-                                       i, 
-									   scheduler
-                                     )
-                );
-                break;
-            case CONCRETE_SCHEDULER_PRO:
-                schedulers.push_back(
-                    new pro_scheduler( m_stats,
                                        this,
                                        m_scoreboard,
                                        m_simt_stack,
@@ -220,9 +203,9 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
                                      )
                 );
                 break;
-             case CONCRETE_SCHEDULER_DAPRO:
+             case CONCRETE_SCHEDULER_DAWS:
                 schedulers.push_back(
-                    new dapro_scheduler( m_stats,
+                    new daws_scheduler( m_stats,
                                        this,
                                        m_scoreboard,
                                        m_simt_stack,
@@ -245,23 +228,12 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
         schedulers[i%m_config->gpgpu_num_sched_per_core]->add_supervised_warp_id(i);
     }
     for ( int i = 0; i < m_config->gpgpu_num_sched_per_core; ++i ) {
-		if (schedulers[i]->is_type(CONCRETE_SCHEDULER_DAPRO)) {
-			dapro_scheduler* daws = dynamic_cast<dapro_scheduler*>(schedulers[i]);
+		if (schedulers[i]->is_type(CONCRETE_SCHEDULER_DAWS)) {
+			daws_scheduler* daws = dynamic_cast<daws_scheduler*>(schedulers[i]);
 			daws->init(m_config->max_warps_per_shader, m_config->gpgpu_num_sched_per_core, m_config->m_L1D_config);
 		}
         schedulers[i]->done_adding_supervised_warps();
-		if (schedulers[i]->is_type(CONCRETE_SCHEDULER_PRO)) {
-			pro_scheduler* ps = dynamic_cast<pro_scheduler*>(schedulers[i]);
-			ps->init(m_cta_num_inst, m_cta_warp_exit, m_cta_warp_barr, m_cta_barr, m_cta_exit, &m_ctas_available);
-		}
     }
-
-	memset(m_cta_num_inst, 0, sizeof(m_cta_num_inst));
-	memset(m_cta_warp_exit, 0, sizeof(m_cta_warp_exit));
-	memset(m_cta_warp_barr, 0, sizeof(m_cta_warp_barr));
-	memset(m_cta_exit, false, sizeof(m_cta_exit));
-	memset(m_cta_barr, false, sizeof(m_cta_barr));
-	m_ctas_available = true;
     
     //op collector configuration
     enum { SP_CUS, SFU_CUS, MEM_CUS, GEN_CUS };
@@ -499,7 +471,7 @@ void shader_core_stats::print( FILE* fout ) const
 	fprintf(fout, "load/store instructions: %u\n", m_load_exec);
 	for (unsigned i = 0; i < m_config->warp_size; i++) 
 		fprintf(fout, "%uI: %u\t", i, m_load_count[i]);
-	fprintf(fout, "\n");
+	fprintf(fout, "\nextra: %u\tloop_s: %u\tloop_rs: %u\tloop_e: %u\tloc: %u\tunloc: %u\tpass: %u\tblock: %u\thigh: %u\n", m_extra_cnt, m_loop_s, m_loop_rs, m_loop_e, m_loc_cnt, m_unloc_cnt, m_loop_pass, m_loop_block, m_loop_high);
 
    fprintf(fout, "Warp Occupancy Distribution:\n");
    fprintf(fout, "Stall:%d\t", shader_cycle_distro[2]);
@@ -676,10 +648,8 @@ void shader_core_ctx::fetch()
                         did_exit=true;
                     }
                 }
-                if( did_exit ) {
+                if( did_exit ) 
                     m_warp[warp_id].set_done_exit();
-					inc_warp_exit(m_warp[warp_id].get_cta_id());
-				}
             }
 
             // this code fetches instructions from the i-cache or generates memory requests
@@ -753,15 +723,14 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     if( next_inst->op == BARRIER_OP ){
     	m_warp[warp_id].store_info_of_last_inst_at_barrier(*pipe_reg);
         m_barriers.warp_reaches_barrier(m_warp[warp_id].get_cta_id(),warp_id,const_cast<warp_inst_t*> (next_inst));
-		inc_barrier_op(m_warp[warp_id].get_cta_id());
+
     }else if( next_inst->op == MEMORY_BARRIER_OP ){
         m_warp[warp_id].set_membar();
-		//inc_barrier_op(m_warp[warp_id].get_cta_id());
     }
 
 	// DAWS stuff
-	if (scheduler->is_type(CONCRETE_SCHEDULER_DAPRO)) {
-		dapro_scheduler* daws = dynamic_cast<dapro_scheduler*>(scheduler);
+	if (scheduler->is_type(CONCRETE_SCHEDULER_DAWS)) {
+		daws_scheduler* daws = dynamic_cast<daws_scheduler*>(scheduler);
 		if ((*pipe_reg)->get_loop_mark() == LOOP_START)
 			daws->warp_enter(warp_id, pc, (*pipe_reg)->active_count());
 		else if ((*pipe_reg)->get_loop_mark() == LOOP_END)
@@ -1024,22 +993,6 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t* lhs, shd_warp_t
     }
 }
 
-void pro_scheduler::order_warps() {
-	if (m_cycles_since_order >= 1000) {
-		sort();
-		m_cycles_since_order = 0;
-	}
-
-	m_next_cycle_prioritized_warps.clear();
-	for (auto it = m_ordered_warps.begin(); it != m_ordered_warps.end(); it++) {
-		if (!(*it) || (*it)->done_exit() || (*it)->waiting())
-			continue;
-		m_next_cycle_prioritized_warps.push_back(*it);
-	}
-
-	m_cycles_since_order++;
-}
-
 void lrr_scheduler::order_warps()
 {
     order_lrr( m_next_cycle_prioritized_warps,
@@ -1058,42 +1011,41 @@ void gto_scheduler::order_warps()
                        scheduler_unit::sort_warps_by_oldest_dynamic_id );
 }
 
-void dapro_scheduler::order_warps() {
+void daws_scheduler::order_warps() {
 	// by default use GTO scheduling
-	pro_scheduler::order_warps();
+	gto_scheduler::order_warps();
 
 	// check if there is cache load within limits
 	if (m_shader->get_cur_cache_load() && (m_shader->get_cur_cache_load() <= cache_size)) {
 		std::vector<shd_warp_t*>::iterator it = m_next_cycle_prioritized_warps.begin();
 		while (it != m_next_cycle_prioritized_warps.end()) {
-			if ((*it) && !(*it)->done_exit()) {
-				unsigned warp_id = (*it)->get_warp_id();
-				unsigned warp_idx = warp_id / num_sched;
-				struct cache_footprint footprint = cache_footprint_pred_table[warp_idx];
-	
-				// check for blocked warps, attempt to enter again
-				if (footprint.pc_loop && !footprint.active) {
-					warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
-					if (!cache_footprint_pred_table[warp_idx].active) {
-						it = m_next_cycle_prioritized_warps.erase(it);
-						continue;
-					}
-				}
+			unsigned warp_id = (*it)->get_warp_id();
+			unsigned warp_idx = warp_id / num_sched;
+			struct cache_footprint footprint = cache_footprint_pred_table[warp_idx];
+
+			// check for blocked warps, attempt to enter again
+			if (footprint.pc_loop && !footprint.active) {
+				warp_enter(warp_id, footprint.pc_loop, footprint.n_active);
+				if (cache_footprint_pred_table[warp_idx].active)
+					it++;
+				else
+					it = m_next_cycle_prioritized_warps.erase(it);
 			}
-			it++;
+			else
+				it++;
 		}
 	}
 }
 
-void dapro_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cache_request_status status) {
-	if ((status != HIT) && (status != MISS) && (status != HIT_RESERVED))
+void daws_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum cache_request_status status) {
+	if ((status != HIT) || (status != MISS) || (status != HIT_RESERVED))
 		return;
 
 	unsigned warp_idx = warp_id / num_sched;
 
 	// check victim tag array to assess locality
 	bool locality = false;
-	unsigned set = (addr / (block_size * sets / 2)) & 1;
+	unsigned set = (addr / block_size) & 1;//(addr / (block_size * sets / 2)) & 1;
 	unsigned long long tag = addr / (block_size * sets);
 	for (auto it = victim_tag_array[warp_idx][set].begin(); it != victim_tag_array[warp_idx][set].end(); it++) {
 		if ((*it) == -1)
@@ -1114,12 +1066,14 @@ void dapro_scheduler::cache_access(unsigned warp_id, new_addr_type addr, enum ca
 			(signed long long)tag);
 	}
 
+	m_stats->inc_loc_cnt(locality);
+
 	// update locality counter
 	if (sampling_warp_table[warp_idx].pc_loop) 
 		sampling_warp_table[warp_idx].locality += locality ? 1 : -1;
 }
 
-void dapro_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_type addr, unsigned n_active, unsigned n_access) {
+void daws_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_type addr, unsigned n_active, unsigned n_access) {
 	unsigned warp_idx = warp_id / num_sched;
 	if (sampling_warp_table[warp_idx].locality > 0) {
 		// get divergence information
@@ -1171,11 +1125,13 @@ void dapro_scheduler::check_load(unsigned warp_id, unsigned pc_load, new_addr_ty
 	}
 }
 
-void dapro_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n_active) {
+void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n_active) {
 	std::set<unsigned> act_rep_ids;
 	unsigned load = 0, warp_idx = warp_id / num_sched;
 
 	// group inner loops into outer loop prediction (loads associated with outer loop)
+
+	m_stats->inc_loop_s();
 
 	// clear loop load repetition data for warp
 	if (cache_footprint_pred_table[warp_idx].active) {
@@ -1184,6 +1140,7 @@ void dapro_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned 
 			return;
 		}
 		else {
+			m_stats->inc_loop_rs();
 			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
 				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
 					if ((*it).pc_load && ((*it).warp_id == warp_id)) 
@@ -1194,8 +1151,11 @@ void dapro_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned 
 				intraloop_rep_detector[i].resize(8);
 			}
 			
-			// clear current prediction
-			m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
+			// check if active threads changed (new prediction)
+			if (n_active == cache_footprint_pred_table[warp_idx].n_active) {
+				m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() + cache_footprint_pred_table[warp_idx].prediction);
+				return;
+			}
 		}
 	}
 
@@ -1218,7 +1178,12 @@ void dapro_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned 
 	unsigned tot_load = m_shader->get_cur_cache_load() + load;
 	if ((load > cache_size) || (tot_load <= cache_size) || (m_shader->get_cur_cache_load() > cache_size)) {
 		m_shader->set_cur_cache_load(tot_load);
-		cache_footprint_pred_table[warp_idx].active = true;
+		if (tot_load <= cache_size) {
+			m_stats->inc_entry(0);
+			cache_footprint_pred_table[warp_idx].active = true;
+		}
+		else
+			m_stats->inc_entry(2);
 
 		// check whether to set as sampling warp
 		if (!sampling_warp_table[warp_idx].pc_loop && (n_active >= 2)) {
@@ -1229,13 +1194,17 @@ void dapro_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned 
 			sampling_warp_table[warp_idx] = (struct loop_sample){pc_loop_s, 0};
 		}
 	}
+	else
+		m_stats->inc_entry(1);
 }
 
-void dapro_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active) {
+void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_active) {
 	unsigned warp_idx = warp_id / num_sched;
 
 	if (!cache_footprint_pred_table[warp_idx].active)
 		return;
+
+	m_stats->inc_loop_e();
 
 	// check if exited outer loop
 	std::unordered_map<unsigned, unsigned>::iterator bnd_iter;
@@ -1253,34 +1222,41 @@ void dapro_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n
 	}
 
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
-	cache_footprint_pred_table[warp_idx] = (struct cache_footprint){0, 0, 0, 0, false};
 
-	// clear intraloop rep data
-	for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
-		for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
-			if ((*it).pc_load && ((*it).warp_id == warp_id)) 
-				it = intraloop_rep_detector[i].erase(it);
-			else
-				it++;
+	// check if warp still has threads in loop
+	if ((n_active == cache_footprint_pred_table[warp_idx].n_active) || 
+			!cache_footprint_pred_table[warp_idx].level) {
+		cache_footprint_pred_table[warp_idx] = (struct cache_footprint){0, 0, 0, 0, false};
+		n_active = 0;
+
+		// clear intraloop rep data
+		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
+			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
+				if ((*it).pc_load && ((*it).warp_id == warp_id)) 
+					it = intraloop_rep_detector[i].erase(it);
+				else
+					it++;
+			}
+			intraloop_rep_detector[i].resize(8);
 		}
-		intraloop_rep_detector[i].resize(8);
+	}
+	else {
+		n_active = cache_footprint_pred_table[warp_idx].n_active - n_active;
+		//cache_footprint_pred_table[warp_idx].active = false;
+		warp_enter(warp_id, cache_footprint_pred_table[warp_idx].pc_loop, n_active);
 	}
 
 	// check if sampling
-	if (sampling_warp_table[warp_idx].pc_loop) 
+	if (sampling_warp_table[warp_idx].pc_loop && (n_active < 2)) 
 		sampling_warp_table[warp_idx] = (struct loop_sample){0, 0};
 }
 
-void dapro_scheduler::warp_barr(unsigned warp_id) {
+void daws_scheduler::warp_barr(unsigned warp_id) {
 	unsigned warp_idx = warp_id / num_sched;
-
-	if (!cache_footprint_pred_table[warp_idx].active)
-		return;
 
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
 	cache_footprint_pred_table[warp_idx].prediction = 0;
 	cache_footprint_pred_table[warp_idx].pc_loop = 0;
-	cache_footprint_pred_table[warp_idx].active = false;
 	if (sampling_warp_table[warp_idx].pc_loop)
 		sampling_warp_table[warp_idx] = (struct loop_sample){0, 0};
 }
@@ -1546,10 +1522,6 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
   else
 	  m_stats->m_num_sim_insn[m_sid] += inst.active_count();
 
-	// accounting for PROgress aware warp scheduling
-	m_warp[inst.warp_id()].inc_warp_num_inst(inst.active_count());
-	inc_num_inst(m_warp[inst.warp_id()].get_cta_id(), inst.active_count());
-
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
   inst.completed(gpu_tot_sim_cycle + gpu_sim_cycle);
@@ -1587,8 +1559,6 @@ void shader_core_ctx::writeback()
         m_operand_collector.writeback(*pipe_reg);
         unsigned warp_id = pipe_reg->warp_id();
         m_scoreboard->releaseRegisters( pipe_reg );
-		//if ((pipe_reg->op == BARRIER_OP)/* || (pipe_reg->op == MEMORY_BARRIER_OP)*/) 
-			//dec_barrier_op(m_warp[warp_id].get_cta_id());
         m_warp[warp_id].dec_inst_in_pipeline();
         warp_inst_complete(*pipe_reg);
         m_gpu->gpu_sim_insn_last_update_sid = m_sid;
@@ -1630,7 +1600,6 @@ ldst_unit::process_cache_access( cache_t* cache,
     mem_stage_stall_type result = NO_RC_FAIL;
     bool write_sent = was_write_sent(events);
     bool read_sent = was_read_sent(events);
-	bool check_cache_access = false;
     if( write_sent ) 
         m_core->inc_store_req( inst.warp_id() );
     if ( status == HIT ) {
@@ -1643,8 +1612,6 @@ ldst_unit::process_cache_access( cache_t* cache,
         }
         if( !write_sent ) 
             delete mf;
-
-		check_cache_access = cache == m_L1D;
     } else if ( status == RESERVATION_FAIL ) {
         result = COAL_STALL;
         assert( !read_sent );
@@ -1654,19 +1621,10 @@ ldst_unit::process_cache_access( cache_t* cache,
         assert( status == MISS || status == HIT_RESERVED );
         //inst.clear_active( access.get_warp_mask() ); // threads in mf writeback when mf returns
         inst.accessq_pop_back();
-
-		check_cache_access = cache == m_L1D;
     }
     if( !inst.accessq_empty() )
         result = BK_CONF;
-
-   	// DAWS stuff
-	if (check_cache_access && (((scheduler_unit*)(inst.get_scheduler()))->is_type(CONCRETE_SCHEDULER_DAPRO))) {
-		dapro_scheduler* daws = dynamic_cast<dapro_scheduler*>((scheduler_unit*)(inst.get_scheduler()));
-		daws->cache_access(inst.warp_id(), address, status);
-	}
-
-	return result;
+    return result;
 }
 
 mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, warp_inst_t &inst )
@@ -1678,10 +1636,19 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue( cache_t *cache, war
     if( !cache->data_port_free() ) 
         return DATA_PORT_STALL; 
 
-    //const mem_access_t &access = inst.accessq_back();
+    const mem_access_t &access = inst.accessq_back();
     mem_fetch *mf = m_mf_allocator->alloc(inst,inst.accessq_back());
     std::list<cache_event> events;
     enum cache_request_status status = cache->access(mf->get_addr(),mf,gpu_sim_cycle+gpu_tot_sim_cycle,events);
+
+	// DAWS stuff
+	if ((cache == m_L1D) && (((scheduler_unit*)(inst.get_scheduler()))->is_type(CONCRETE_SCHEDULER_DAWS)) &&
+			((status == HIT) || (status == MISS) || (status == HIT_RESERVED))) {
+		daws_scheduler* daws = dynamic_cast<daws_scheduler*>((scheduler_unit*)(inst.get_scheduler()));
+		daws->cache_access(inst.warp_id(), access.get_addr(), status);
+	}
+	else if ((cache == m_L1D) && ((status == HIT) || (status == MISS) || (status == HIT_RESERVED)))
+		m_stats->inc_extra_cnt();
 
     return process_cache_access( cache, mf->get_addr(), inst, events, mf, status );
 }
@@ -2973,8 +2940,6 @@ void barrier_set_t::warp_reaches_barrier(unsigned cta_id,unsigned warp_id,warp_i
    if(bar_count==(unsigned)-1){
 	   if( at_barrier == active ) {
 		   // all warps have reached barrier, so release waiting warps...
-		   m_shader->clear_barrier_op(cta_id);
-
 		   m_bar_id_to_warps[bar_id] &= ~at_barrier;
 		   m_warp_at_barrier &= ~at_barrier;
 		   if(bar_type==RED){
@@ -2985,8 +2950,6 @@ void barrier_set_t::warp_reaches_barrier(unsigned cta_id,unsigned warp_id,warp_i
 	  // TODO: check on the hardware if the count should include warp that exited
 	  if ((at_barrier.count() * m_warp_size) == bar_count){
 		   // required number of warps have reached barrier, so release waiting warps...
-		   m_shader->clear_barrier_op(cta_id);
-
 		   m_bar_id_to_warps[bar_id] &= ~at_barrier;
 		   m_warp_at_barrier &= ~at_barrier;
 		   if(bar_type==RED){
@@ -3790,7 +3753,6 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned 
         if ( ptx_thread_done(tid) ) {
             m_warp[inst.warp_id()].set_completed(t);
             m_warp[inst.warp_id()].ibuffer_flush();
-			set_thread_exit(m_warp[inst.warp_id()].get_cta_id());
         }
 
     // PC-Histogram Update 

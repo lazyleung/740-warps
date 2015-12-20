@@ -36,6 +36,13 @@ class kernel_info_t;
 #define MAX_CTA_PER_SHADER 32
 #define MAX_BARRIERS_PER_CTA 16
 
+enum loop_info_t {
+  LOOP_NONE = 0,
+  LOOP_START = 1,
+  LOOP_END = 2
+};
+typedef enum loop_info_t loop_info_type;
+
 enum _memory_space_t {
    undefined_space=0,
    reg_space,
@@ -846,6 +853,19 @@ public:
         m_cache_hit=false;
         m_empty=false;
     }
+    void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id, void* scheduler ) 
+    {
+        m_warp_active_mask = mask;
+        m_warp_issued_mask = mask; 
+        m_uid = ++sm_next_uid;
+        m_warp_id = warp_id;
+        m_dynamic_warp_id = dynamic_warp_id;
+        issue_cycle = cycle;
+        cycles = initiation_interval;
+        m_cache_hit=false;
+        m_empty=false;
+		m_scheduler = scheduler;
+    }
     const active_mask_t & get_active_mask() const
     {
     	return m_warp_active_mask;
@@ -964,9 +984,15 @@ public:
     void print( FILE *fout ) const;
     unsigned get_uid() const { return m_uid; }
 
+	void* get_scheduler() {
+		return m_scheduler;
+	}
+    loop_info_type get_loop_mark() const { return m_loop_mark; }
 
 protected:
 
+    loop_info_type m_loop_mark;
+    
     unsigned m_uid;
     bool m_empty;
     bool m_cache_hit;
@@ -994,6 +1020,9 @@ protected:
     std::list<mem_access_t> m_accessq;
 
     static unsigned sm_next_uid;
+
+	// DAWS
+	void* m_scheduler;
 };
 
 void move_warp( warp_inst_t *&dst, warp_inst_t *&src );

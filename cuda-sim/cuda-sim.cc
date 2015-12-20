@@ -209,7 +209,21 @@ void function_info::ptx_assemble()
       if ( pI->is_label() ) {
          const symbol *l = pI->get_label();
          labels[l->name()] = n;
+      // } else if( pI->is_loop_start() ) {
+      //    printf("\n\nFound Loop Start @ %u\n\n", PC);
+      //    m_loop_info[PC](LOOP_START);
+      // } else if( pI->is_loop_end() ) {
+      //    printf("\n\nFound Loop End   @ %u\n\n", PC);
+      //    m_loop_info[PC](LOOP_END);
       } else {
+         if( pI->is_loop_start() ) {
+            printf("\n\nFound Loop Start @ %u\n\n", PC);
+            m_loop_info[PC] = LOOP_START;
+         } else if( pI->is_loop_end() ) {
+            printf("\n\nFound Loop End   @ %u\n\n", PC);
+            m_loop_info[PC] = LOOP_END;
+         }
+
          g_pc_to_finfo[PC] = this;
          m_instr_mem[n] = pI;
          s_g_pc_to_insn.push_back(pI);

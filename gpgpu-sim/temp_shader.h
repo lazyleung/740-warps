@@ -94,7 +94,6 @@ public:
         m_stores_outstanding=0;
         m_inst_in_pipeline=0;
         reset(); 
-		m_warp_num_inst = 0;
     }
     void reset()
     {
@@ -229,12 +228,6 @@ public:
     unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
     unsigned get_warp_id() const { return m_warp_id; }
 
-	unsigned get_inst_comp() {
-		return m_warp_num_inst;
-	}
-	void inc_warp_num_inst(unsigned active_count) {
-		m_warp_num_inst += active_count;
-	}
 private:
     static const unsigned IBUFFER_SIZE=2;
     class shader_core_ctx *m_shader;
@@ -268,9 +261,6 @@ private:
 
     unsigned m_stores_outstanding; // number of store requests sent but not yet acknowledged
     unsigned m_inst_in_pipeline;
-
-	// for PROgress aware warp scheduling
-	unsigned m_warp_num_inst;
 };
 
 
@@ -306,8 +296,7 @@ enum concrete_scheduler
     CONCRETE_SCHEDULER_GTO,
     CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE,
     CONCRETE_SCHEDULER_WARP_LIMITING,
-	CONCRETE_SCHEDULER_PRO,
-	CONCRETE_SCHEDULER_DAPRO,
+	CONCRETE_SCHEDULER_DAWS,
     NUM_CONCRETE_SCHEDULERS
 };
 
@@ -370,7 +359,7 @@ public:
     virtual void order_warps() = 0;
 
 	bool is_type(concrete_scheduler type) {
-		return m_type == type;
+		return type == m_type;
 	}
 protected:
     virtual void do_on_warp_issued( unsigned warp_id,
@@ -402,149 +391,7 @@ protected:
     register_set* m_mem_out;
 
     int m_id;
-
-	// identification
 	concrete_scheduler m_type;
-};
-
-/* PRO: Progress Aware Warp Scheduling */
-class pro_scheduler : public scheduler_unit {
-	public:
-		pro_scheduler(shader_core_stats* stats, shader_core_ctx* shader, 
-				Scoreboard* scoreboard, simt_stack** simt, std::vector<shd_warp_t>* warp,
-				register_set* sp_out, register_set* sfu_out, register_set* mem_out, int id,
-				concrete_scheduler type)
-			: scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type) {
-			m_cycles_since_order = 0;
-		}
-
-		virtual ~pro_scheduler() {}
-		virtual void order_warps();
-
-		void init(unsigned num_inst[MAX_CTA_PER_SHADER], unsigned num_exit[MAX_CTA_PER_SHADER], unsigned num_barr[MAX_CTA_PER_SHADER], bool barr[MAX_CTA_PER_SHADER], bool exit[MAX_CTA_PER_SHADER], bool* available) {
-			m_cta_num_inst = num_inst;
-			m_cta_warp_exit = num_exit;
-			m_cta_warp_barr = num_barr;
-			m_cta_barr = barr;
-			m_cta_exit = exit;
-			m_ctas_available = available;
-		}
-	
-	    virtual void add_supervised_warp_id(int i) {
-	        m_supervised_warps.push_back(&warp(i));
-			m_ordered_warps.push_back(&warp(i));
-	    }
-
-		void sort() {
-			barr_sort_struct barr_sort(this);
-			nowait_sort_struct nowait_sort(this);
-
-			for (auto it = m_supervised_warps.begin(); it != m_supervised_warps.end(); it++) {
-				if (!(*it) || (*it)->done_exit())
-					continue;
-				if (m_cta_barr[(*it)->get_cta_id()])
-					m_warps_barr.push_back(*it);
-				else if (*m_ctas_available && m_cta_exit[(*it)->get_cta_id()])
-					m_warps_exit.push_back(*it);
-				else
-					m_warps_nowait.push_back(*it);
-			}
-
-			m_ordered_warps.clear();
-
-			m_warps_barr.sort(barr_sort);
-			m_warps_nowait.sort(nowait_sort);
-			if (*m_ctas_available) {
-				m_warps_exit.sort(barr_sort);
-				m_ordered_warps.splice(m_ordered_warps.end(), m_warps_exit);
-			}
-			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_barr);
-			m_ordered_warps.splice(m_ordered_warps.end(), m_warps_nowait);
-		}
-
-	private:
-		unsigned* m_cta_num_inst;
-		unsigned* m_cta_warp_exit;
-		unsigned* m_cta_warp_barr;
-		bool* m_cta_barr;
-		bool* m_cta_exit;
-		bool* m_ctas_available;
-		unsigned m_cycles_since_order;
-
-		std::list<shd_warp_t*> m_warps_nowait;
-		std::list<shd_warp_t*> m_warps_barr;
-		std::list<shd_warp_t*> m_warps_exit;
-		std::list<shd_warp_t*> m_ordered_warps;
-
-		struct nowait_sort_struct {
-			pro_scheduler* m_ps;
-
-			nowait_sort_struct(pro_scheduler* ps) : m_ps(ps) {};
-
-			bool operator() (shd_warp_t* a, shd_warp_t* b) {
-				unsigned cta_a = a ? a->get_cta_id() : 0;
-				unsigned cta_b = b ? b->get_cta_id() : 0;
-	
-				bool same_cta = cta_b == cta_a;
-				bool cta_id_comp = cta_b < cta_a;
-				bool warp_id_comp = a && b ? a->get_warp_id() < b->get_warp_id() : a < b;
-
-				if (!a || a->done_exit())
-					return (!b || b->done_exit()) ? (same_cta ? warp_id_comp : cta_id_comp) : false;
-
-				if (!b || b->done_exit())
-					return true;
-			
-				if (same_cta) {
-					if (a->get_inst_comp() == b->get_inst_comp())
-						return warp_id_comp;
-					return m_ps->m_ctas_available ? a->get_inst_comp() > b->get_inst_comp() : 
-						a->get_inst_comp() < b->get_inst_comp();
-				}
-
-				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
-
-				if (m_ps->m_ctas_available)
-					return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : 
-						cta_id_comp;
-				else
-					return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] < m_ps->m_cta_num_inst[cta_b] : 
-						cta_id_comp;
-			}
-		};
-
-		struct barr_sort_struct {
-			pro_scheduler* m_ps;
-
-			barr_sort_struct(pro_scheduler* ps) : m_ps(ps) {};
-
-			bool operator() (shd_warp_t* a, shd_warp_t* b) {
-				unsigned cta_a = a ? a->get_cta_id() : 0;
-				unsigned cta_b = b ? b->get_cta_id() : 0;
-	
-				bool same_cta = cta_b == cta_a;
-				bool cta_id_comp = cta_b < cta_a;
-				bool warp_id_comp = a && b ? a->get_warp_id() < b->get_warp_id() : a < b;
-
-				if (!a || a->done_exit())
-					return (!b || b->done_exit()) ? (same_cta ? warp_id_comp : cta_id_comp) : false;
-
-				if (!b || b->done_exit())
-					return true;
-
-				if (same_cta) {
-					if (a->get_inst_comp() == b->get_inst_comp())
-						return warp_id_comp;
-					else
-						return a->get_inst_comp() < b->get_inst_comp();
-				}
-
-				bool cta_inst_comp = m_ps->m_cta_num_inst[cta_a] != m_ps->m_cta_num_inst[cta_b];
-
-				return cta_inst_comp ? m_ps->m_cta_num_inst[cta_a] > m_ps->m_cta_num_inst[cta_b] : 
-					cta_id_comp;
-			}
-		};
 };
 
 class lrr_scheduler : public scheduler_unit {
@@ -584,9 +431,9 @@ public:
 
 };
 
-class dapro_scheduler : public pro_scheduler {
+class daws_scheduler : public gto_scheduler {
 public:
-	dapro_scheduler ( shader_core_stats* stats, shader_core_ctx* shader,
+	daws_scheduler ( shader_core_stats* stats, shader_core_ctx* shader,
                     Scoreboard* scoreboard, simt_stack** simt,
                     std::vector<shd_warp_t>* warp,
                     register_set* sp_out,
@@ -594,7 +441,7 @@ public:
                     register_set* mem_out,
                     int id,
 					concrete_scheduler type )
-	: pro_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {}
+	: gto_scheduler ( stats, shader, scoreboard, simt, warp, sp_out, sfu_out, mem_out, id, type ) {}
 
 	void init(const unsigned max_warps, const int max_sched, cache_config m_L1D_config) {
 		num_sched = max_sched;
@@ -619,7 +466,7 @@ public:
 		next_rep_id = 1;
 	}
 
-	virtual ~dapro_scheduler () {}
+	virtual ~daws_scheduler () {}
 	virtual void order_warps ();
 
 	// functions for updating dynamic loop/load information
@@ -1718,6 +1565,7 @@ public:
         m_shader_dynamic_warp_issue_distro.resize( config->num_shader() );
         m_shader_warp_slot_issue_distro.resize( config->num_shader() );
 
+		m_extra_cnt = 0, m_unloc_cnt = 0, m_loc_cnt = 0, m_loop_s = 0, m_loop_e = 0, m_loop_rs = 0, m_loop_high = 0, m_loop_block = 0, m_loop_pass = 0;
 		m_load_exec = 0;
 		memset(m_load_count, 0, sizeof(m_load_count));
     }
@@ -1753,6 +1601,32 @@ public:
         return m_shader_warp_slot_issue_distro;
     }
 
+	void inc_extra_cnt() {
+		m_extra_cnt++;
+	}
+	void inc_loc_cnt(bool loc) {
+		if (loc)
+			m_loc_cnt++;
+		else
+			m_unloc_cnt++;
+	}
+	void inc_loop_e() {
+		m_loop_e++;
+	}
+	void inc_loop_s() {
+		m_loop_s++;
+	}
+	void inc_loop_rs() {
+		m_loop_rs++;
+	}
+	void inc_entry(unsigned type) {
+		switch (type) {
+			case 0: m_loop_pass++; break;
+			case 1: m_loop_block++; break;
+			case 2: m_loop_high++; break;
+			default: break;
+		}
+	}
 	void count_mem_divergence(unsigned count) {
 		if (count > 0) {
 			m_load_exec++;
@@ -1773,6 +1647,7 @@ private:
     std::vector<unsigned> m_last_shader_warp_slot_issue_distro;
 
 	// memory divergence measure
+	unsigned m_extra_cnt, m_unloc_cnt, m_loc_cnt, m_loop_s, m_loop_e, m_loop_rs, m_loop_high, m_loop_block, m_loop_pass;
 	unsigned m_load_exec;
 	unsigned m_load_count[MAX_WARP_SIZE];
 
@@ -2003,37 +1878,12 @@ public:
 	 void inc_simt_to_mem(unsigned n_flits){ m_stats->n_simt_to_mem[m_sid] += n_flits; }
 	 bool check_if_non_released_reduction_barrier(warp_inst_t &inst);
 
-	// PROgress aware warp scheduling
-	void set_thread_exit(unsigned cta) {
-		m_cta_exit[cta] = true;
-	}
-	void inc_num_inst(unsigned cta, unsigned inc) {
-		m_cta_num_inst[cta] += inc;
-	}
-	void inc_barrier_op(unsigned cta) {
-		m_cta_warp_barr[cta]++;
-		m_cta_barr[cta] = true;
-	}
-	void dec_barrier_op(unsigned cta) {
-		m_cta_warp_barr[cta]--;
-		if (!m_cta_warp_barr[cta])
-			m_cta_barr[cta] = false;
-	}
-	void clear_barrier_op(unsigned cta) {
-		m_cta_warp_barr[cta] = 0;
-		m_cta_barr[cta] = false;
-	}
-	void set_ctas_available(bool more_cta_left) {
-		m_ctas_available = more_cta_left;
-	}
-	void inc_warp_exit(unsigned cta) {
-		m_cta_warp_exit[cta]++;
 	// DAWS stuff
 	unsigned get_cur_cache_load() {
 		return m_cur_cache_load;
 	}
 	void set_cur_cache_load(unsigned new_load) {
-		m_cur_cache_load = new_load;
+		m_cur_cache_load += new_load;
 	}
 	unsigned get_max_cache_load() {
 		return m_max_cache_load;
@@ -2139,14 +1989,6 @@ public:
     // is that the dynamic_warp_id is a running number unique to every warp
     // run on this shader, where the warp_id is the static warp slot.
     unsigned m_dynamic_warp_id;
-
-	// PROgress aware warp scheduler information
-	unsigned m_cta_num_inst[MAX_CTA_PER_SHADER];	
-	unsigned m_cta_warp_exit[MAX_CTA_PER_SHADER];
-	unsigned m_cta_warp_barr[MAX_CTA_PER_SHADER];
-	bool m_cta_barr[MAX_CTA_PER_SHADER];
-	bool m_cta_exit[MAX_CTA_PER_SHADER];
-	bool m_ctas_available;
 };
 
 class simt_core_cluster {
