@@ -232,6 +232,14 @@ public:
         assert( m_valid );
         return m_nset * m_assoc;
     }
+	unsigned get_assoc() const {
+		assert( m_valid );
+		return m_assoc;
+	}
+	unsigned get_nset() const {
+		assert( m_valid );
+		return m_nset;
+	}
 
     void print( FILE *fp ) const
     {
