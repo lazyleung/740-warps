@@ -1130,26 +1130,27 @@ void daws_scheduler::warp_enter(unsigned warp_id, unsigned pc_loop_s, unsigned n
 
 	// group inner loops into outer loop prediction (loads associated with outer loop)
 
-	// clear loop load repetition data for warp
 	if (cache_footprint_pred_table[warp_idx].active) {
-		if (pc_loop_s != cache_footprint_pred_table[warp_idx].pc_loop) { 
+		// entering inner loop
+		if (pc_loop_s > cache_footprint_pred_table[warp_idx].pc_loop) 
 			cache_footprint_pred_table[warp_idx].level++;
-			return;
-		}
-		else {
-			for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
-				for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
-					if ((*it).pc_load && ((*it).warp_id == warp_id)) 
-						it = intraloop_rep_detector[i].erase(it);
-					else 
-						it++;
-				}
-				intraloop_rep_detector[i].resize(8);
+		// returning to outer loop
+		else if (pc_loop_s < cache_footprint_pred_table[warp_idx].pc_loop)
+			pc_loop_s = cache_footprint_pred_table[warp_idx].pc_loop;
+
+		// clear intraloop load repetition data
+		for (unsigned i = 0; i < intraloop_rep_detector.size(); i++) {
+			for (auto it = intraloop_rep_detector[i].begin(); it != intraloop_rep_detector[i].end(); ) {
+				if ((*it).pc_load && ((*it).warp_id == warp_id)) 
+					it = intraloop_rep_detector[i].erase(it);
+				else 
+					it++;
 			}
-			
-			// clear current prediction
-			m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
+			intraloop_rep_detector[i].resize(8);
 		}
+			
+		// clear current prediction
+		m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
 	}
 
 	// calculate load prediction
@@ -1205,6 +1206,7 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 		return;	
 	}
 
+	// only clear prediction and other data when exited outer loop
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
 	cache_footprint_pred_table[warp_idx] = (struct cache_footprint){0, 0, 0, 0, false};
 
