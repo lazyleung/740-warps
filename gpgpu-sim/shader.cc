@@ -1232,6 +1232,8 @@ void daws_scheduler::warp_barr(unsigned warp_id) {
 
 	if (!cache_footprint_pred_table[warp_idx].active)
 		return;
+	if (!m_shader->warp_waiting_at_barrier(warp_id))
+		return;
 
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);
 	cache_footprint_pred_table[warp_idx].prediction = 0;
