@@ -1192,19 +1192,19 @@ void daws_scheduler::warp_exit(unsigned warp_id, unsigned pc_loop_e, unsigned n_
 		return;
 
 	// check if exited outer loop
-	std::unordered_map<unsigned, unsigned>::iterator bnd_iter;
-	if ((bnd_iter = loop_bnds.find(cache_footprint_pred_table[warp_idx].pc_loop)) == loop_bnds.end()) {
+	//std::unordered_map<unsigned, unsigned>::iterator bnd_iter;
+	//if ((bnd_iter = loop_bnds.find(cache_footprint_pred_table[warp_idx].pc_loop)) == loop_bnds.end()) {
 		if (!cache_footprint_pred_table[warp_idx].level)
 			loop_bnds[cache_footprint_pred_table[warp_idx].pc_loop] = pc_loop_e;
 		else {
 			cache_footprint_pred_table[warp_idx].level--;	
 			return;
 		}
-	}
-	else if ((*bnd_iter).second != pc_loop_e) {
-		cache_footprint_pred_table[warp_idx].level--;
-		return;	
-	}
+	//}
+	//else if ((*bnd_iter).second != pc_loop_e) {
+	//	cache_footprint_pred_table[warp_idx].level--;
+	//	return;	
+	//}
 
 	// only clear prediction and other data when exited outer loop
 	m_shader->set_cur_cache_load(m_shader->get_cur_cache_load() - cache_footprint_pred_table[warp_idx].prediction);

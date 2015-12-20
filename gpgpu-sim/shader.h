@@ -480,7 +480,7 @@ public:
 
 private:
 	// key is pc_loop_s
-	std::unordered_map<unsigned, unsigned> loop_bnds;
+	//std::unordered_map<unsigned, unsigned> loop_bnds;
 
 	struct load_info {
 		unsigned pc_loop;
